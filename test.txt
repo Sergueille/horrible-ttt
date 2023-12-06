@@ -1,0 +1,5 @@
+
+ERROR: 0:6: error(#143) Undeclared identifier: gl_Position
+ERROR: 0:6: error(#160) Cannot convert from: "highp 4-component vector of vec4" to: "float"
+ERROR: error(#273) 2 compilation errors.  No code generated
+
