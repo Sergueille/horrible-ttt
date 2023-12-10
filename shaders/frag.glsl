@@ -2,8 +2,11 @@
 
 out vec4 color;
 in vec3 pos_i;
+in vec3 local_pos_i;
+in vec2 uv_i;
 
 void main() {
-    color = vec4(pos_i + vec3(0.5, 0.5, 0.0), 1.0);
+    float val = dot(normalize(local_pos_i), vec3(1.0, 0.0, 0.0));
+    color = vec4(val, val, val, 1.0);
 }
 
