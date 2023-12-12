@@ -21,36 +21,31 @@ struct Vertex {
 }
 implement_vertex!(Vertex, pos, uv);
 
-const TEST_VERTICES: [Vertex; 8] = [
-    Vertex { pos: [-0.5, -0.5, 0.5],    uv: [0.0, 0.0] },
-    Vertex { pos: [0.5, -0.5, 0.5],     uv: [1.0, 0.0] },
-    Vertex { pos: [0.5, 0.5, 0.5],      uv: [1.0, 1.0] },
-    Vertex { pos: [-0.5, 0.5, 0.5],     uv: [0.0, 1.0] },
-    Vertex { pos: [-0.5, -0.5, -0.5],     uv: [0.0, 0.0] },
-    Vertex { pos: [0.5, -0.5, -0.5],     uv: [0.0, 0.0] },
-    Vertex { pos: [0.5, 0.5, -0.5],     uv: [0.0, 0.0] },
-    Vertex { pos: [-0.5, 0.5, -0.5],     uv: [0.0, 0.0] },
-];
-
-const TEST_INDICES: [u8; 36] = [
-    0, 1, 2, 0, 2, 3,
-    6, 5, 4, 7, 6, 4,
-    6, 2, 1, 1, 5, 6,
-    0, 3, 7, 7, 4, 0,
-    5, 1, 0, 0, 4, 5,
-    3, 2, 6, 6, 7, 3,
-];
-
 fn main() {
     let event_loop = winit::event_loop::EventLoopBuilder::new().build();
     let (_window, display) = glium::backend::glutin::SimpleWindowBuilder::new().build(&event_loop);
+    
+    // Create quad mesh
+    let quad_vertices = glium::VertexBuffer::new(&display, &util::QUAD_VERTICES).unwrap();
+    let quad_indices = glium::index::IndexBuffer::new(&display, glium::index::PrimitiveType::TrianglesList, &util::QUAD_INDICES).unwrap();
+    
+    // Create cube mesh
+    let cube_vertices = glium::VertexBuffer::new(&display, &util::CUBE_VERTICES).unwrap();
+    let cube_indices = glium::index::IndexBuffer::new(&display, glium::index::PrimitiveType::TrianglesList, &util::CUBE_INDICES).unwrap();
 
+    // Initial state
     let mut state = State {
         time: time::init_time(),
         shaders: Vec::new(),
-        resolution: vec2u(_window.inner_size().width, _window.inner_size().height),
+        resolution: vec2u(0, 0),
+        quad_vertices, 
+        quad_indices,
+        cube_vertices, 
+        cube_indices,
+        camera_projection_mat: mat4::create(),
     };
 
+    // Compile shaders
     shader::create_shaders(&display, &mut state);
 
     event_loop.run(move |ev, _, control_flow| {
@@ -65,6 +60,14 @@ fn main() {
         }
 
         state.time.update();
+
+        // If resolution changed, updates values
+        let new_resolution = vec2u(_window.inner_size().width, _window.inner_size().height);
+        if new_resolution.x != state.resolution.x || new_resolution.y != state.resolution.y {
+            state.resolution = new_resolution;
+            mat4::perspective(&mut state.camera_projection_mat, PI / 4.0, state.resolution.x as f32 / state.resolution.y as f32, 0.1, None);
+        }
+
         draw(&display, &state);
     });
 }
@@ -74,21 +77,16 @@ fn draw(display: &glium::Display<glium::glutin::surface::WindowSurface>, state: 
 
     frame.clear_all((0.8, f32::sin(state.time.time) * 0.5 + 0.5, 0.1, 1.0), 0.0, 0);
 
-    let vertex_buffer = glium::VertexBuffer::new(display, &TEST_VERTICES).unwrap();
-    let indices = glium::index::IndexBuffer::new(display, glium::index::PrimitiveType::TrianglesList, &TEST_INDICES).unwrap();
 
-    let mut perspective_mat: Mat4 = mat4::create();
-    mat4::perspective(&mut perspective_mat, PI / 4.0, state.resolution.x as f32 / state.resolution.y as f32, 0.001, Some(50.0));
     let mut transform_mat: Mat4 = mat4::create();
     let mut test: Mat4 = mat4::create();
-    mat4::translate(&mut test, &transform_mat, &[0.0,0.0, 0.0]);
+    mat4::translate(&mut test, &transform_mat, &[0.0,0.0, -5.0]);
     mat4::rotate_y(&mut transform_mat, &test, state.time.time);
-    mat4::rotate_z(&mut test, &transform_mat, PI/4.0);
-    mat4::rotate_x(&mut transform_mat, &test, PI/4.0);
+    mat4::rotate_x(&mut test, &transform_mat, PI/4.0);
+    mat4::rotate_z(&mut transform_mat, &test, PI/4.0);
 
     let uniforms = uniform!{
-        //projection: util::mat_to_uniform(perspective_mat),
-        projection: util::mat_to_uniform(mat4::identity(&mut test)),
+        projection: util::mat_to_uniform(state.camera_projection_mat),
         transform: util::mat_to_uniform(transform_mat),
     };
 
@@ -102,18 +100,48 @@ fn draw(display: &glium::Display<glium::glutin::surface::WindowSurface>, state: 
         .. Default::default()
     };
 
-    match &shader::get_shader("test", &state).program {
-        None => println!("Uuh?"),
-        Some(program) => {
-            frame.draw(&vertex_buffer, &indices, program, &uniforms, &params)
-                .expect("Failed to draw!");
-        }
-    }
+    let test_shader = shader::get_shader("test", &state);
+    let test_shader2 = shader::get_shader("test2", &state);
 
-    print_mat(perspective_mat);
-    print_mat(transform_mat);
-    println!("--");
+    frame.draw(&state.cube_vertices, &state.cube_indices, &test_shader.program, &uniforms, &params).expect("Failed to draw!");
+
+    frame.clear_depth(0.0);
+
+    draw_screen_billboard([0.5, 0.5, 0.0], [0.2, 0.2], &test_shader2, &mut frame, &state);
 
     frame.finish().expect("Uuh?");
 }
 
+// position:    center of the quad, (0, 0) is bottom left, (1, wh) is the top right, last coordinate is z
+// size:        size of the quad, 1 is screen height
+fn draw_screen_billboard(position: Vec3, size: Vec2, shader: &shader::Shader, frame: &mut glium::Frame, state: &State) {
+    let params = glium::DrawParameters {
+        depth: glium::Depth {
+            test: glium::DepthTest::IfMore,
+            write: true,
+            .. Default::default()
+        },
+        backface_culling: glium::draw_parameters::BackfaceCullingMode::CullClockwise,
+        .. Default::default()
+    };
+    
+    let mut no_projection_mat = mat4::create();
+    mat4::identity(&mut no_projection_mat);
+
+    let ratio = state.resolution.y as f32 / state.resolution.x as f32;
+
+    let mut scale_mat = mat4::create();
+    let mut translate_mat = mat4::create();
+    let mut transform = mat4::create();
+    mat4::from_scaling(&mut scale_mat, &[size[0] * 2.0 * ratio, size[1] * 2.0, 1.0]);
+    mat4::from_translation(&mut translate_mat, &[-1.0 + position[0] * 2.0 * ratio, -1.0 + position[1] * 2.0, position[2]]);
+    mat4::mul(&mut transform, &translate_mat, &scale_mat);
+
+    let uniforms = uniform!{
+        projection: util::mat_to_uniform(no_projection_mat),
+        transform: util::mat_to_uniform(transform),
+    };
+
+    frame.draw(&state.cube_vertices, &state.cube_indices, &shader.program, &uniforms, &params)
+        .expect("Failed to draw!");
+}

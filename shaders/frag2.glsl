@@ -6,6 +6,6 @@ in vec3 local_pos_i;
 in vec2 uv_i;
 
 void main() {
-    color = vec4(local_pos_i, 1.0);
+    color = vec4(local_pos_i.gbr, 1.0);
 }
 

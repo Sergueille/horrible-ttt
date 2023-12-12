@@ -1,4 +1,5 @@
 use crate::gl_matrix::common::*;
+use crate::Vertex;
 
 pub struct Vec2i {
     pub x: i32,
@@ -52,4 +53,39 @@ pub fn print_mat(mat: Mat4) {
         println!("");
     }
 }
+
+
+pub const QUAD_VERTICES: [Vertex; 4] = [
+    Vertex { pos: [-0.5, -0.5, 0.0],    uv: [0.0, 0.0] },
+    Vertex { pos: [0.5, -0.5, 0.0],     uv: [1.0, 0.0] },
+    Vertex { pos: [0.5, 0.5, 0.0],      uv: [1.0, 1.0] },
+    Vertex { pos: [-0.5, 0.5, 0.0],     uv: [0.0, 1.0] },
+];
+
+pub const QUAD_INDICES: [u8; 6] = [
+    0, 1, 2, 0, 2, 3,
+];
+
+
+pub const CUBE_VERTICES: [Vertex; 8] = [
+    Vertex { pos: [-0.5, -0.5, 0.5],    uv: [0.0, 0.0] },
+    Vertex { pos: [0.5, -0.5, 0.5],     uv: [1.0, 0.0] },
+    Vertex { pos: [0.5, 0.5, 0.5],      uv: [1.0, 1.0] },
+    Vertex { pos: [-0.5, 0.5, 0.5],     uv: [0.0, 1.0] },
+    Vertex { pos: [-0.5, -0.5, -0.5],     uv: [0.0, 0.0] },
+    Vertex { pos: [0.5, -0.5, -0.5],     uv: [0.0, 0.0] },
+    Vertex { pos: [0.5, 0.5, -0.5],     uv: [0.0, 0.0] },
+    Vertex { pos: [-0.5, 0.5, -0.5],     uv: [0.0, 0.0] },
+];
+
+pub const CUBE_INDICES: [u8; 36] = [
+    0, 1, 2, 0, 2, 3,
+    6, 5, 4, 7, 6, 4,
+    6, 2, 1, 1, 5, 6,
+    0, 3, 7, 7, 4, 0,
+    5, 1, 0, 0, 4, 5,
+    3, 2, 6, 6, 7, 3,
+];
+
+
 
