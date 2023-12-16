@@ -46,13 +46,15 @@ fn main() {
         cube_indices,
         camera_projection_mat: mat4::create(),
         assets: assets::crate_base(),
+        display
     };
 
     // Compile shaders
-    shader::create_shaders(&display, &mut state);
+    shader::create_shaders(&mut state);
 
     // TEST: create some textures
     texture::create_to_assets("x.png", &mut state);
+    texture::create_to_assets("sandwich.png", &mut state);
 
     event_loop.run(move |ev, _, control_flow| {
         match ev {
@@ -74,12 +76,12 @@ fn main() {
             mat4::perspective(&mut state.camera_projection_mat, PI / 4.0, state.resolution.x as f32 / state.resolution.y as f32, 0.1, None);
         }
 
-        draw(&display, &state);
+        draw(&state);
     });
 }
 
-fn draw(display: &glium::Display<glium::glutin::surface::WindowSurface>, state: &State) {
-    let mut frame = display.draw();
+fn draw(state: &State) {
+    let mut frame = state.display.draw();
 
     frame.clear_all((0.8, f32::sin(state.time.time) * 0.5 + 0.5, 0.1, 1.0), 0.0, 0);
 
@@ -109,7 +111,7 @@ fn draw(display: &glium::Display<glium::glutin::surface::WindowSurface>, state: 
     let test_shader = assets::get_shader(&"test".to_string(), &state);
     let test_shader2 = assets::get_shader(&"test2".to_string(), &state);
 
-    frame.draw(&state.cube_vertices, &state.cube_indices, &test_shader.program, &uniforms, &params).expect("Failed to draw!");
+    frame.draw(&state.cube_vertices, &state.cube_indices, &test_shader2.program, &uniforms, &params).expect("Failed to draw!");
 
     frame.clear_depth(0.0);
 

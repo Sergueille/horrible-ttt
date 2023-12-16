@@ -20,7 +20,7 @@ pub struct Shader {
     pub program: glium::Program
 }
 
-pub fn create_shaders<'a>(display: &glium::Display<glium::glutin::surface::WindowSurface>, state: &'a mut state::State) {
+pub fn create_shaders<'a>(state: &'a mut state::State) {
     let shader_infos = vec![
         define_program!("test", "frag", "vtex"),
         define_program!("test2", "textest", "vtex"),
@@ -36,7 +36,7 @@ pub fn create_shaders<'a>(display: &glium::Display<glium::glutin::surface::Windo
 
         let shader = Shader {
             info,
-            program: glium::Program::from_source(display, &vtex_content, &frag_content, None).unwrap(),
+            program: glium::Program::from_source(&state.display, &vtex_content, &frag_content, None).unwrap(),
         };
 
         state.assets.insert(name, assets::Asset::Shader(shader));

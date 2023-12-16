@@ -16,4 +16,5 @@ pub struct State {
     pub cube_indices: glium::IndexBuffer<u8>,
     pub camera_projection_mat: Mat4,
     pub assets: crate::assets::AssetBase,
+    pub display: glium::Display<glium::glutin::surface::WindowSurface>,
 }

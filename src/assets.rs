@@ -1,19 +1,19 @@
 
 use std::collections::HashMap;
 
-pub enum Asset<'a> {
-    Texture(crate::texture::Texture<'a>),
+pub enum Asset {
+    Texture(crate::texture::Texture),
     Shader(crate::shader::Shader),
 }
 
 // FIXME: 'static should not be used
-pub type AssetBase = HashMap<String, Asset<'static>>;
+pub type AssetBase = HashMap<String, Asset>;
 
 pub fn crate_base() -> AssetBase {
     return HashMap::new();
 }
 
-fn get<'a>(name: &String, state: &'a crate::state::State) -> &'a Asset<'static> {
+fn get<'a>(name: &String, state: &'a crate::state::State) -> &'a Asset {
     let res = state.assets.get(name);
 
     return match res {
@@ -25,7 +25,7 @@ fn get<'a>(name: &String, state: &'a crate::state::State) -> &'a Asset<'static> 
     }
 }
 
-pub fn get_image<'a>(name: &String, state: &'a crate::state::State) -> &'a crate::texture::Texture<'static> {
+pub fn get_image<'a>(name: &String, state: &'a crate::state::State) -> &'a crate::texture::Texture {
     let res = get(name, state);
 
     return match res {
