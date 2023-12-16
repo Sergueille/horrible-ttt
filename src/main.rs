@@ -3,6 +3,8 @@ mod state;
 mod time;
 mod shader;
 mod util;
+mod texture;
+mod assets;
 
 #[macro_use]
 extern crate glium;
@@ -43,10 +45,14 @@ fn main() {
         cube_vertices, 
         cube_indices,
         camera_projection_mat: mat4::create(),
+        assets: assets::crate_base(),
     };
 
     // Compile shaders
     shader::create_shaders(&display, &mut state);
+
+    // TEST: create some textures
+    texture::create_to_assets("x.png", &mut state);
 
     event_loop.run(move |ev, _, control_flow| {
         match ev {
@@ -100,13 +106,14 @@ fn draw(display: &glium::Display<glium::glutin::surface::WindowSurface>, state: 
         .. Default::default()
     };
 
-    let test_shader = shader::get_shader("test", &state);
-    let test_shader2 = shader::get_shader("test2", &state);
+    let test_shader = assets::get_shader(&"test".to_string(), &state);
+    let test_shader2 = assets::get_shader(&"test2".to_string(), &state);
 
     frame.draw(&state.cube_vertices, &state.cube_indices, &test_shader.program, &uniforms, &params).expect("Failed to draw!");
 
     frame.clear_depth(0.0);
 
+    // TODO: put the image here!
     draw_screen_billboard([0.5, 0.5, 0.0], [0.2, 0.2], &test_shader2, &mut frame, &state);
 
     frame.finish().expect("Uuh?");

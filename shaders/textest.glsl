@@ -5,7 +5,9 @@ in vec3 pos_i;
 in vec3 local_pos_i;
 in vec2 uv_i;
 
+uniform sampler2D tex;
+
 void main() {
-    color = vec4(local_pos_i.gbr, 1.0);
+    color = texture(tex, uv_i);
 }
 
