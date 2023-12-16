@@ -25,7 +25,7 @@ fn get<'a>(name: &String, state: &'a crate::state::State) -> &'a Asset {
     }
 }
 
-pub fn get_image<'a>(name: &String, state: &'a crate::state::State) -> &'a crate::texture::Texture {
+pub fn get_texture<'a>(name: &String, state: &'a crate::state::State) -> &'a crate::texture::Texture {
     let res = get(name, state);
 
     return match res {

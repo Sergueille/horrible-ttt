@@ -4,8 +4,8 @@ extern crate image;
 use crate::state;
 
 pub struct Texture {
-    texture: glium::texture::SrgbTexture2d,
-    name: String,
+    pub texture: glium::texture::SrgbTexture2d,
+    pub name: String,
 }
 
 pub fn create_to_assets(filename: &str, state: &mut state::State) {

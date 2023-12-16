@@ -11,6 +11,9 @@ extern crate glium;
 extern crate gl_matrix;
 
 use glium::Surface;
+use glium::program::Uniform;
+use glium::program::UniformBlock;
+use glium::uniforms;
 use state::State;
 use gl_matrix::common::*;
 use gl_matrix::mat4;
@@ -96,6 +99,7 @@ fn draw(state: &State) {
     let uniforms = uniform!{
         projection: util::mat_to_uniform(state.camera_projection_mat),
         transform: util::mat_to_uniform(transform_mat),
+        tex: &assets::get_texture(&"x.png".to_string(), &state).texture
     };
 
     let params = glium::DrawParameters {
@@ -115,15 +119,18 @@ fn draw(state: &State) {
 
     frame.clear_depth(0.0);
 
-    // TODO: put the image here!
-    draw_screen_billboard([0.5, 0.5, 0.0], [0.2, 0.2], &test_shader2, &mut frame, &state);
+    let quad_uniforms = dynamic_uniform!{
+        tex: &assets::get_texture(&"sandwich.png".to_string(), &state).texture,
+    };
+
+    draw_screen_billboard([0.5, 0.5, 0.0], [0.2, 0.2], &test_shader2, Some(quad_uniforms), &mut frame, &state);
 
     frame.finish().expect("Uuh?");
 }
 
 // position:    center of the quad, (0, 0) is bottom left, (1, wh) is the top right, last coordinate is z
 // size:        size of the quad, 1 is screen height
-fn draw_screen_billboard(position: Vec3, size: Vec2, shader: &shader::Shader, frame: &mut glium::Frame, state: &State) {
+fn draw_screen_billboard<'a, 'b>(position: Vec3, size: Vec2, shader: &shader::Shader, uniforms: Option<uniforms::DynamicUniforms<'a, 'b>>, frame: &mut glium::Frame, state: &State) {
     let params = glium::DrawParameters {
         depth: glium::Depth {
             test: glium::DepthTest::IfMore,
@@ -146,11 +153,27 @@ fn draw_screen_billboard(position: Vec3, size: Vec2, shader: &shader::Shader, fr
     mat4::from_translation(&mut translate_mat, &[-1.0 + position[0] * 2.0 * ratio, -1.0 + position[1] * 2.0, position[2]]);
     mat4::mul(&mut transform, &translate_mat, &scale_mat);
 
-    let uniforms = uniform!{
-        projection: util::mat_to_uniform(no_projection_mat),
-        transform: util::mat_to_uniform(transform),
-    };
+    let transform_u = util::mat_to_uniform(transform);
+    let projection_u = util::mat_to_uniform(no_projection_mat);
 
-    frame.draw(&state.cube_vertices, &state.cube_indices, &shader.program, &uniforms, &params)
-        .expect("Failed to draw!");
+    match uniforms {
+        Some(mut u) => {
+            u.add(&"transform", &transform_u);
+            u.add(&"projection", &projection_u);
+
+            frame.draw(&state.cube_vertices, &state.cube_indices, &shader.program, &u, &params)
+                .expect("Failed to draw!");
+        }
+        None => {
+            let final_uniforms = uniform! {
+                transform: transform_u,
+                projection: projection_u
+            };
+
+            frame.draw(&state.cube_vertices, &state.cube_indices, &shader.program, &final_uniforms, &params)
+                .expect("Failed to draw!");
+        }
+    }
+
+
 }
