@@ -3,6 +3,7 @@ use crate::time;
 use crate::shader;
 use crate::util::*;
 use gl_matrix::common::Mat4;
+use gl_matrix::common::Vec2;
 
 use crate::Vertex;
 
@@ -17,4 +18,7 @@ pub struct State {
     pub camera_projection_mat: Mat4,
     pub assets: crate::assets::AssetBase,
     pub display: glium::Display<glium::glutin::surface::WindowSurface>,
+    pub mouse_coords_pixels: Vec2u,
+    pub mouse_coords_normalized: Vec2,
+    pub mouse_delta_normalized: Vec2,
 }

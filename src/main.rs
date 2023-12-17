@@ -10,9 +10,8 @@ mod assets;
 extern crate glium;
 extern crate gl_matrix;
 
+use gl_matrix::vec2;
 use glium::Surface;
-use glium::program::Uniform;
-use glium::program::UniformBlock;
 use glium::uniforms;
 use state::State;
 use gl_matrix::common::*;
@@ -49,7 +48,10 @@ fn main() {
         cube_indices,
         camera_projection_mat: mat4::create(),
         assets: assets::crate_base(),
-        display
+        display,
+        mouse_coords_normalized: [0.0, 0.0],
+        mouse_coords_pixels: vec2u(0, 0),
+        mouse_delta_normalized: [0.0, 0.0],
     };
 
     // Compile shaders
@@ -60,15 +62,26 @@ fn main() {
     texture::create_to_assets("sandwich.png", &mut state);
 
     event_loop.run(move |ev, _, control_flow| {
+
+        // Remember lest mouse position
+        let old_mous_pos = state.mouse_delta_normalized;
+
         match ev {
             winit::event::Event::WindowEvent { event, .. } => match event {
                 winit::event::WindowEvent::CloseRequested => {
                     *control_flow = winit::event_loop::ControlFlow::Exit;
                 },
+                winit::event::WindowEvent::CursorMoved { position, .. } => {
+                    state.mouse_coords_pixels = vec2u(position.x as u32, state.resolution.y - position.y as u32);
+                    state.mouse_coords_normalized = [state.mouse_coords_pixels.x as f32 / state.resolution.y as f32, state.mouse_coords_pixels.y as f32 / state.resolution.y as f32];
+                }
                 _ => (),
             },
             _ => (),
         }
+
+        // Get mouse delta position
+        vec2::sub(&mut state.mouse_delta_normalized, &state.mouse_coords_normalized, &old_mous_pos);
 
         state.time.update();
 
@@ -79,14 +92,14 @@ fn main() {
             mat4::perspective(&mut state.camera_projection_mat, PI / 4.0, state.resolution.x as f32 / state.resolution.y as f32, 0.1, None);
         }
 
-        draw(&state);
+        main_loop(&state);
     });
 }
 
-fn draw(state: &State) {
+fn main_loop(state: &State) {
     let mut frame = state.display.draw();
 
-    frame.clear_all((0.8, f32::sin(state.time.time) * 0.5 + 0.5, 0.1, 1.0), 0.0, 0);
+    frame.clear_all((0.2, 0.2, 0.05, 1.0), 0.0, 0);
 
 
     let mut transform_mat: Mat4 = mat4::create();
@@ -123,7 +136,7 @@ fn draw(state: &State) {
         tex: &assets::get_texture(&"sandwich.png".to_string(), &state).texture,
     };
 
-    draw_screen_billboard([0.5, 0.5, 0.0], [0.2, 0.2], &test_shader2, Some(quad_uniforms), &mut frame, &state);
+    draw_screen_billboard([state.mouse_coords_normalized[0], state.mouse_coords_normalized[1], 0.0], [0.2, 0.2], &test_shader2, Some(quad_uniforms), &mut frame, &state);
 
     frame.finish().expect("Uuh?");
 }
