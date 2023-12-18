@@ -24,6 +24,7 @@ pub fn create_shaders<'a>(state: &'a mut state::State) {
     let shader_infos = vec![
         define_program!("test", "frag", "vtex"),
         define_program!("test2", "textest", "vtex"),
+        define_program!("line", "frag", "vtex"),
     ];
 
     state.shaders = Vec::with_capacity(shader_infos.len());

@@ -16,6 +16,7 @@ use glium::uniforms;
 use state::State;
 use gl_matrix::common::*;
 use gl_matrix::mat4;
+use gl_matrix::vec4;
 use util::*;
 
 #[derive(Copy, Clone)]
@@ -89,7 +90,7 @@ fn main() {
         let new_resolution = vec2u(_window.inner_size().width, _window.inner_size().height);
         if new_resolution.x != state.resolution.x || new_resolution.y != state.resolution.y {
             state.resolution = new_resolution;
-            mat4::perspective(&mut state.camera_projection_mat, PI / 4.0, state.resolution.x as f32 / state.resolution.y as f32, 0.1, None);
+            mat4::perspective(&mut state.camera_projection_mat, PI / 4.0, state.resolution.x as f32 / state.resolution.y as f32, 0.1, Some(100.0));
         }
 
         main_loop(&state);
@@ -99,8 +100,7 @@ fn main() {
 fn main_loop(state: &State) {
     let mut frame = state.display.draw();
 
-    frame.clear_all((0.2, 0.2, 0.05, 1.0), 0.0, 0);
-
+    frame.clear_all((0.1, 0.3, 0.05, 1.0), 100000.0, 0);
 
     let mut transform_mat: Mat4 = mat4::create();
     let mut test: Mat4 = mat4::create();
@@ -117,7 +117,7 @@ fn main_loop(state: &State) {
 
     let params = glium::DrawParameters {
         depth: glium::Depth {
-            test: glium::DepthTest::IfMore,
+            test: glium::DepthTest::IfLess,
             write: true,
             .. Default::default()
         },
@@ -130,23 +130,37 @@ fn main_loop(state: &State) {
 
     frame.draw(&state.cube_vertices, &state.cube_indices, &test_shader2.program, &uniforms, &params).expect("Failed to draw!");
 
-    frame.clear_depth(0.0);
+    draw_line_world([-0.5, -0.5, state.time.time.sin() * 10.0 - 15.0], [0.5, -0.5, state.time.time.sin() * 10.0 - 15.0], [0.0, 0.0, 0.0, 0.0], 0.02, &mut frame, &state);
+    draw_line_world([0.5, -0.5, state.time.time.sin() * 10.0 - 15.0], [0.5, 0.5, state.time.time.sin() * 10.0 - 15.0], [0.0, 0.0, 0.0, 0.0], 0.02, &mut frame, &state);
+    draw_line_world([0.5, 0.5, state.time.time.sin() * 10.0 - 15.0], [-0.5, 0.5, state.time.time.sin() * 10.0 - 15.0], [0.0, 0.0, 0.0, 0.0], 0.02, &mut frame, &state);
+    draw_line_world([-0.5, 0.5, state.time.time.sin() * 10.0 - 15.0], [-0.5, -0.5, state.time.time.sin() * 10.0 - 15.0], [0.0, 0.0, 0.0, 0.0], 0.02, &mut frame, &state);
+    draw_line_world([-0.2, -0.2, state.time.time.sin() * 10.0 - 15.0], [0.2, 0.2, state.time.time.sin() * 10.0 - 15.0], [0.0, 0.0, 0.0, 0.0], 0.02, &mut frame, &state);
+
+    frame.clear_depth(10000.0);
 
     let quad_uniforms = dynamic_uniform!{
         tex: &assets::get_texture(&"sandwich.png".to_string(), &state).texture,
     };
 
-    draw_screen_billboard([state.mouse_coords_normalized[0], state.mouse_coords_normalized[1], 0.0], [0.2, 0.2], &test_shader2, Some(quad_uniforms), &mut frame, &state);
+    draw_screen_billboard(
+        [state.mouse_coords_normalized[0], 
+        state.mouse_coords_normalized[1], 0.0], 
+        [0.2, 0.2], 
+        state.time.time, 
+        &test_shader2, 
+        Some(quad_uniforms), 
+        &mut frame, &state
+    );
 
     frame.finish().expect("Uuh?");
 }
 
 // position:    center of the quad, (0, 0) is bottom left, (1, wh) is the top right, last coordinate is z
 // size:        size of the quad, 1 is screen height
-fn draw_screen_billboard<'a, 'b>(position: Vec3, size: Vec2, shader: &shader::Shader, uniforms: Option<uniforms::DynamicUniforms<'a, 'b>>, frame: &mut glium::Frame, state: &State) {
+fn draw_screen_billboard<'a, 'b>(position: Vec3, size: Vec2, rotation: f32, shader: &shader::Shader, uniforms: Option<uniforms::DynamicUniforms<'a, 'b>>, frame: &mut glium::Frame, state: &State) {
     let params = glium::DrawParameters {
         depth: glium::Depth {
-            test: glium::DepthTest::IfMore,
+            test: glium::DepthTest::IfLess,
             write: true,
             .. Default::default()
         },
@@ -159,14 +173,21 @@ fn draw_screen_billboard<'a, 'b>(position: Vec3, size: Vec2, shader: &shader::Sh
 
     let ratio = state.resolution.y as f32 / state.resolution.x as f32;
 
+    // OPTI: hum
     let mut scale_mat = mat4::create();
     let mut translate_mat = mat4::create();
-    let mut transform = mat4::create();
-    mat4::from_scaling(&mut scale_mat, &[size[0] * 2.0 * ratio, size[1] * 2.0, 1.0]);
+    let mut rotate_mat = mat4::create();
+    let mut ratio_mat = mat4::create();
+    let transform = &mut mat4::create();
+    mat4::from_scaling(&mut scale_mat, &[size[0] * 2.0, size[1] * 2.0, 1.0]);
+    mat4::from_scaling(&mut ratio_mat, &[ratio, 1.0, 1.0]);
     mat4::from_translation(&mut translate_mat, &[-1.0 + position[0] * 2.0 * ratio, -1.0 + position[1] * 2.0, position[2]]);
-    mat4::mul(&mut transform, &translate_mat, &scale_mat);
+    mat4::from_z_rotation(&mut rotate_mat, rotation);
+    mat4::mul(transform, &translate_mat, &ratio_mat,);
+    mat4::mul(transform, &mat4::clone(transform), &rotate_mat);
+    mat4::mul(transform, &mat4::clone(transform), &scale_mat);
 
-    let transform_u = util::mat_to_uniform(transform);
+    let transform_u = util::mat_to_uniform(*transform);
     let projection_u = util::mat_to_uniform(no_projection_mat);
 
     match uniforms {
@@ -189,4 +210,62 @@ fn draw_screen_billboard<'a, 'b>(position: Vec3, size: Vec2, shader: &shader::Sh
     }
 
 
+}
+
+// FIXME: this is not working
+fn draw_line_world(a: Vec3, b: Vec3, color: Vec4, width: f32, frame: &mut glium::Frame, state: &State) {
+    let a_4 : Vec4 = [a[0], a[1], a[2], 1.0];
+    let b_4 : Vec4 = [b[0], b[1], b[2], 1.0];
+
+    let mut a_screen: Vec4 = vec4::create();
+    let mut b_screen: Vec4 = vec4::create();
+    vec4::transform_mat4(&mut a_screen, &a_4, &state.camera_projection_mat);
+    vec4::transform_mat4(&mut b_screen, &b_4, &state.camera_projection_mat);
+
+    a_screen = util::divide_by_w(a_screen);
+    b_screen = util::divide_by_w(b_screen);
+
+    a_screen[0] *= 0.5;
+    a_screen[1] *= 0.5;
+    b_screen[0] *= 0.5;
+    b_screen[1] *= 0.5;
+
+    a_screen[0] += 0.5;
+    a_screen[1] += 0.5;
+    b_screen[0] += 0.5;
+    b_screen[1] += 0.5;
+
+    // Take screen ratio into account
+    a_screen[0] = a_screen[0] * state.resolution.x as f32 / state.resolution.y as f32;
+    b_screen[0] = b_screen[0] * state.resolution.x as f32 / state.resolution.y as f32;
+
+    let position = [
+        (a_screen[0] + b_screen[0]) / 2.0,
+        (a_screen[1] + b_screen[1]) / 2.0,
+        0.0
+    ];
+
+    let mut dist = (a_screen[0] - b_screen[0]) * (a_screen[0] - b_screen[0])
+                 + (a_screen[1] - b_screen[1]) * (a_screen[1] - b_screen[1]);
+    dist = dist.sqrt();
+
+    let size = [
+        dist + width,
+        width
+    ];
+
+    let rotation;
+    if (a_screen[0] - b_screen[0]).abs() > 0.001 { 
+        rotation = ((a_screen[1] - b_screen[1]) / (a_screen[0] - b_screen[0])).atan();
+    }
+    else {
+        rotation = PI / 2.0;
+    }
+
+    let uniforms = dynamic_uniform!{   
+        color: &color,
+    };
+    
+    let shader = assets::get_shader(&"line".to_string(), state);
+    draw_screen_billboard([position[0], position[1], 0.0], size, rotation, shader, Some(uniforms), frame, state);
 }

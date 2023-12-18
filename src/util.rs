@@ -54,6 +54,14 @@ pub fn print_mat(mat: Mat4) {
     }
 }
 
+pub fn divide_by_w(vec: Vec4) -> Vec4 {
+    return [
+        vec[0] / vec[3],
+        vec[1] / vec[3],
+        vec[2] / vec[3],
+        vec[3],
+    ]
+}
 
 pub const QUAD_VERTICES: [Vertex; 4] = [
     Vertex { pos: [-0.5, -0.5, 0.0],    uv: [0.0, 0.0] },
