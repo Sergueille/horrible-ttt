@@ -262,8 +262,11 @@ fn draw_line_world(a: Vec3, b: Vec3, color: Vec4, width: f32, frame: &mut glium:
         rotation = PI / 2.0;
     }
 
+    let ratio = (dist + width) / width;
+
     let uniforms = dynamic_uniform!{   
         color: &color,
+        ratio: &ratio, 
     };
     
     let shader = assets::get_shader(&"line".to_string(), state);
