@@ -8,6 +8,7 @@ use gl_matrix::common::Vec2;
 use crate::Vertex;
 
 pub struct State {
+    // Engine
     pub time: time::Time,
     pub shaders: Vec<shader::Shader>,
     pub resolution: Vec2u,
@@ -21,4 +22,9 @@ pub struct State {
     pub mouse_coords_pixels: Vec2u,
     pub mouse_coords_normalized: Vec2,
     pub mouse_delta_normalized: Vec2,
+    pub last_main_time: f32,
+
+    // Game
+    pub cube_transform_matrix: Mat4,
 }
+

@@ -5,11 +5,9 @@ in vec3 pos_i;
 in vec3 local_pos_i;
 in vec2 uv_i;
 
-uniform sampler2D tex;
 uniform vec4 color;
 
 void main() {
-    color_o = texture(tex, uv_i) * color;
-    if (color.a < 0.05) discard;
+    color_o = color;
 }
 

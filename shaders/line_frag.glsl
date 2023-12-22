@@ -1,11 +1,12 @@
 #version 330 core
 
-out vec4 color;
+out vec4 color_o;
 in vec3 pos_i;
 in vec3 local_pos_i;
 in vec2 uv_i;
 
 uniform float ratio;
+uniform vec4 color;
 
 // OPTI: berk
 void main() {
@@ -19,6 +20,6 @@ void main() {
         if (dist > 0.25) discard;
     }
 
-    color = vec4(1.0, 0.0, 1.0, 1.0);
+    color_o = color;
 }
 
