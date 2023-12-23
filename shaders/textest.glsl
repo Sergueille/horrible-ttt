@@ -10,6 +10,6 @@ uniform vec4 color;
 
 void main() {
     color_o = texture(tex, uv_i) * color;
-    if (color.a < 0.05) discard;
+    if (color_o.a < 0.1) discard;
 }
 

@@ -25,6 +25,10 @@ pub fn vec2u(x: u32, y: u32) -> Vec2u {
     return Vec2u { x, y };
 }
 
+pub fn vec3i(x: i32, y: i32, z: i32) -> Vec3i {
+    return Vec3i { x, y, z };
+}
+
 pub fn mat_to_uniform(mat: Mat4) -> [[f32; 4]; 4] {
     return [
         [mat[0], mat[1], mat[2], mat[3]],
@@ -54,13 +58,27 @@ pub fn print_mat(mat: Mat4) {
     }
 }
 
+pub fn print_vec4(vec: Vec4) {
+    for i in 0..4 {
+        print!("{} ", vec[i]);
+    }
+    println!("");
+}
+
+pub fn print_vec3(vec: Vec3) {
+    for i in 0..3 {
+        print!("{} ", vec[i]);
+    }
+    println!("");
+}
+
 pub fn divide_by_w(vec: Vec4) -> Vec4 {
     return [
         vec[0] / vec[3],
         vec[1] / vec[3],
         vec[2] / vec[3],
-        vec[3],
-    ]
+        1.0,
+    ];
 }
 
 pub const QUAD_VERTICES: [Vertex; 4] = [
@@ -95,5 +113,12 @@ pub const CUBE_INDICES: [u8; 36] = [
     3, 2, 6, 6, 7, 3,
 ];
 
+pub fn vec3_to_4(vec: &Vec3) -> Vec4 {
+    return [vec[0], vec[1], vec[2], 1.0];
+}
+
+pub fn vec4_to_3(vec: &Vec4) -> Vec3 {
+    return [vec[0], vec[1], vec[2]];
+}
 
 

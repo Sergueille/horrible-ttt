@@ -26,5 +26,6 @@ pub struct State {
 
     // Game
     pub cube_transform_matrix: Mat4,
+    pub cube_size: f32,
 }
 
