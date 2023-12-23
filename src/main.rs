@@ -7,6 +7,7 @@ mod texture;
 mod assets;
 mod draw;
 mod game;
+mod input;
 
 #[macro_use]
 extern crate glium;
@@ -33,6 +34,8 @@ implement_vertex!(Vertex, pos, uv);
 
 const MAX_FPS: i32 = 100; 
 const ROW_COUNT: i32 = 6;
+const ROTATE_MULT: f32 = 1.8; // HACK: temporary solution
+const ROTATE_SPEED_DECREASE: f32 = 250.0; // TEST
 static FOV: f32 = PI / 4.0;
 
 fn main() {
@@ -65,14 +68,23 @@ fn main() {
         mouse_coords_pixels: vec2u(0, 0),
         mouse_delta_normalized: [0.0, 0.0],
         last_main_time: 0.0,
+
+        lmb: input::get_info(),
+        rmb: input::get_info(),
+        mmb: input::get_info(),
+
         cube_transform_matrix: mat4::create(),
         cube_rotation: quat::create(),
+        cube_rotation_velocity: quat::create(),
         cube_size: 2.0,
+
         blocks: [game::BlockType::Empty; (ROW_COUNT * ROW_COUNT * ROW_COUNT) as usize],
+        last_mouse_sphere_intersection: None,
     };
 
     // Reset rotation
     quat::identity(&mut state.cube_rotation);
+    quat::identity(&mut state.cube_rotation_velocity);
 
     // Compile shaders
     shader::create_shaders(&mut state);
@@ -94,6 +106,14 @@ fn main() {
                 winit::event::WindowEvent::CursorMoved { position, .. } => {
                     state.mouse_coords_pixels = vec2u(position.x as u32, state.resolution.y - position.y as u32);
                     state.mouse_coords_normalized = [state.mouse_coords_pixels.x as f32 / state.resolution.y as f32, state.mouse_coords_pixels.y as f32 / state.resolution.y as f32];
+                },
+                winit::event::WindowEvent::MouseInput { device_id: _, state: action, button, .. } => {
+                    match button {
+                        winit::event::MouseButton::Left => input::update_info(&action, &mut state.lmb),
+                        winit::event::MouseButton::Right => input::update_info(&action, &mut state.rmb),
+                        winit::event::MouseButton::Middle => input::update_info(&action, &mut state.mmb),
+                        winit::event::MouseButton::Other(_) => {},
+                    }
                 }
                 _ => (),
             },
@@ -116,6 +136,11 @@ fn main() {
         if state.time.time - state.last_main_time > 1.0 / (MAX_FPS as f32) {
             main_loop(&mut state);
             state.last_main_time = state.time.time;
+            
+            // reset button states
+            input::reset_info(&mut state.lmb);
+            input::reset_info(&mut state.rmb);
+            input::reset_info(&mut state.mmb);
         }
     });
 }
@@ -136,10 +161,9 @@ fn main_loop(state: &mut State) {
     
     state.cube_transform_matrix = transform_mat;
 
-    let test_shader2 = assets::get_shader(&"default".to_string(), &state);
-
     // frame.draw(&state.cube_vertices, &state.cube_indices, &test_shader2.program, &uniforms, &params).expect("Failed to draw!");
 
+    // Draw lines
     for i in [0, 6, 1, 2, 3, 4, 5] {
         for j in [0, 6, 1, 2, 3, 4, 5] {
             let i_norm = state.cube_size / (ROW_COUNT as f32) * i as f32 - 1.0;
@@ -186,21 +210,56 @@ fn main_loop(state: &mut State) {
 
     frame.clear_depth(10000.0);
 
-    let mouse_ray = util::get_mouse_ray(&state);
-    let intersection = util::intersect_line_sphere(&[0.0, 0.0, -5.0], 2.0, &[0.0, 0.0, 0.0], &mouse_ray);
+    // Mouse control
+    if state.lmb.hold {
+        let mouse_ray = util::get_mouse_ray(&state);
+        let intersection = util::intersect_line_sphere(&[0.0, 0.0, -5.0], 2.0, &[0.0, 0.0, 0.0], &mouse_ray);
 
-    let test_shader = assets::get_shader(&"test".to_string(), &state);   
+        // TODO: looks like when delta mouse is too small, rotation is ignored because of precision issues,
+        //       so the rotation doesn't follow the mouse
+        if !state.lmb.down { // Already down last frame
+            if intersection != None && state.last_mouse_sphere_intersection != None {
+                // Get delta angle
+                let from = intersection.expect("");
+                let to = state.last_mouse_sphere_intersection.expect("");
 
-    match intersection {
-        None => {}
-        Some(vec) => {
-            draw::draw_world_billboard(vec, [0.04, 0.04], 0.0, test_shader, None, &mut frame, state);
+                let mut from_n = vec3::create();
+                let mut to_n = vec3::create();
+                vec3::normalize(&mut from_n, &from);
+                vec3::normalize(&mut to_n, &to);
+
+                let mut delta = quat::create();
+                quat::rotation_to(&mut delta, &from_n, &to_n);
+
+                let multiplied = util::multiply_quat(&delta, ROTATE_MULT); // ~ "Multiply" the quaternion
+
+                let mut new_rotation = quat::create();
+                quat::mul(&mut new_rotation, &multiplied, &state.cube_rotation);
+                state.cube_rotation = new_rotation;
+                
+                let test_shader = assets::get_shader(&"test".to_string(), &state);      
+                draw::draw_world_billboard(intersection.expect(""), [0.04, 0.04], 0.0, test_shader, None, &mut frame, state);
+
+                state.cube_rotation_velocity = multiplied;
+            }   
         }
+
+        state.last_mouse_sphere_intersection = intersection;
+    }
+    else {
+        // Decrease velocity
+        state.cube_rotation_velocity = util::multiply_quat(&state.cube_rotation_velocity, (-state.time.delta_time * ROTATE_SPEED_DECREASE).exp()) ;
+
+        // Apply velocity rotation
+        let mut new_rotation = quat::create();
+        quat::mul(&mut new_rotation, &state.cube_rotation_velocity, &state.cube_rotation);
+        state.cube_rotation = new_rotation;
     }
 
-    let mut test = vec3::create();
-    vec3::scale(&mut test, &mouse_ray, (state.time.time * 10.0).sin() + 2.0);
-    draw::draw_world_billboard(test, [0.02, 0.02], 0.0, test_shader, None, &mut frame, state);
+    // Make sure the cube rotation is normalized (sometimes isn't because of precision issues) 
+    let mut normalized = quat::create();
+    quat::normalize(&mut normalized, &state.cube_rotation);
+    state.cube_rotation = normalized;
 
     frame.finish().expect("Uuh?");
 }

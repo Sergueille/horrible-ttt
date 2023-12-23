@@ -26,10 +26,18 @@ pub struct State {
     pub mouse_delta_normalized: Vec2,
     pub last_main_time: f32,
 
+    pub lmb: crate::input::ButtonInfo,
+    pub rmb: crate::input::ButtonInfo,
+    pub mmb: crate::input::ButtonInfo,
+
     // Game
     pub cube_transform_matrix: Mat4,
     pub cube_rotation: Quat,
     pub cube_size: f32,
-    pub blocks: [game::BlockType; (ROW_COUNT * ROW_COUNT * ROW_COUNT) as usize]
+    pub blocks: [game::BlockType; (ROW_COUNT * ROW_COUNT * ROW_COUNT) as usize],
+    pub cube_rotation_velocity: Quat,
+
+    // TODO: should also retain the sphere radius
+    pub last_mouse_sphere_intersection: Option<Vec3>,
 }
 

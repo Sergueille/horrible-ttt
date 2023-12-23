@@ -1,4 +1,4 @@
-use gl_matrix::vec3;
+use gl_matrix::{vec3, quat};
 
 use crate::gl_matrix::common::*;
 use crate::Vertex;
@@ -162,11 +162,31 @@ pub fn intersect_line_sphere(o: &Vec3, r: f32, a: &Vec3, v: &Vec3) -> Option<Vec
     let t2 = (-dot - sqrt_delta) / vv;
     let t = if t1 > t2 { t2 } else { t1 };
 
-    let mut scaled_v = vec3::create();
     let mut res = vec3::create();
-    vec3::scale(&mut scaled_v, &v, t);
-    vec3::add(&mut res, &scaled_v, &a);
-
+    vec3::scale_and_add(&mut res, &a, &v, t);
     return Some(res);
 }
+
+// Gets the intersection point between:
+// - the plane that goes through P, with normal N
+// - the line that goes through A, with vector V
+pub fn intersect_line_plane(p: &Vec3, n: &Vec3, a: &Vec3, v: &Vec3) -> Vec3 {
+    let mut diff = vec3::create();
+    vec3::sub(&mut diff, &a, &p);
+    
+    let t = vec3::dot(&n, &diff) / vec3::dot(&v, &n);
+
+    let mut res = vec3::create();
+    vec3::scale_and_add(&mut res, &a, &v, t);
+    return res;
+}
+
+pub fn multiply_quat(quat: &Quat, scalar: f32) -> Quat {
+    let mut id = quat::create();
+    let mut res = quat::create();
+    quat::identity(&mut id);
+    quat::lerp(&mut res, &id, &quat, scalar); 
+    return res;
+}
+
 
