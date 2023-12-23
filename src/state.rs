@@ -1,4 +1,6 @@
 
+use crate::*;
+use crate::game;
 use crate::time;
 use crate::shader;
 use crate::util::*;
@@ -26,6 +28,8 @@ pub struct State {
 
     // Game
     pub cube_transform_matrix: Mat4,
+    pub cube_rotation: Quat,
     pub cube_size: f32,
+    pub blocks: [game::BlockType; (ROW_COUNT * ROW_COUNT * ROW_COUNT) as usize]
 }
 

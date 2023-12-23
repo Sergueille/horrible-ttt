@@ -1,5 +1,8 @@
+use gl_matrix::vec3;
+
 use crate::gl_matrix::common::*;
 use crate::Vertex;
+use crate::state::State;
 
 pub struct Vec2i {
     pub x: i32,
@@ -121,4 +124,49 @@ pub fn vec4_to_3(vec: &Vec4) -> Vec3 {
     return [vec[0], vec[1], vec[2]];
 }
 
+// NOTE: assumes that the camera is facing negative z axis
+pub fn get_mouse_ray(state: &State) -> Vec3 {
+    let ratio = state.resolution.x as f32 / state.resolution.y as f32;
+    let tan = (crate::FOV / 2.0).tan();
+
+    let direction = [
+        (state.mouse_coords_normalized[0] - 0.5 * ratio) * tan,
+        (state.mouse_coords_normalized[1] - 0.5) * tan,
+        -0.5
+    ];
+
+    let mut res = vec3::create();
+    vec3::normalize(&mut res, &direction);
+    return res;
+}
+
+// Gets the intersection point between:
+// - the sphere of center O and radius R 
+// - the line that goes through A, with vector V
+// returns the nearest point to A 
+pub fn intersect_line_sphere(o: &Vec3, r: f32, a: &Vec3, v: &Vec3) -> Option<Vec3> {
+    let mut c = vec3::create();
+    vec3::sub(&mut c, &a, &o);
+
+    let dot = vec3::dot(&v, &c);
+    let vv = vec3::sqr_len(&v);
+    let cc = vec3::sqr_len(&c);
+
+    let delta = dot * dot - vv * (cc - r * r);
+    if delta < 0.0 {
+        return None;
+    } 
+
+    let sqrt_delta = delta.sqrt();
+    let t1 = (-dot + sqrt_delta) / vv;
+    let t2 = (-dot - sqrt_delta) / vv;
+    let t = if t1 > t2 { t2 } else { t1 };
+
+    let mut scaled_v = vec3::create();
+    let mut res = vec3::create();
+    vec3::scale(&mut scaled_v, &v, t);
+    vec3::add(&mut res, &scaled_v, &a);
+
+    return Some(res);
+}
 
