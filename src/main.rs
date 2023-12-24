@@ -14,7 +14,6 @@ extern crate glium;
 extern crate gl_matrix;
 
 use std::env;
-use std::f32::consts::E;
 
 use gl_matrix::quat;
 use gl_matrix::vec2;
@@ -70,12 +69,7 @@ fn main() {
         mouse_delta_normalized: [0.0, 0.0],
         mouse_ray: vec3::create(),
         last_main_time: 0.0,
-
-        lmb: input::get_info(),
-        rmb: input::get_info(),
-        mmb: input::get_info(),
-        wheel_up: false,
-        wheel_down: false,
+        input: input::get_input(),
 
         cube_transform_matrix: mat4::create(),
         cube_rotation: quat::create(),
@@ -107,7 +101,7 @@ fn main() {
         // Remember last mouse position
         let old_mous_pos = state.mouse_coords_normalized;
 
-        input::handle_input(&event, control_flow, &mut state);
+        input::get_events(&event, control_flow, &mut state);
 
         // Get mouse delta position
         vec2::sub(&mut state.mouse_delta_normalized, &state.mouse_coords_normalized, &old_mous_pos);
@@ -168,14 +162,17 @@ fn main_loop(state: &mut State) {
 
             let corner = (i == 0 || i == 6) && 
                          (j == 0 || j == 6);
+            let border = (i == 0 || i == 6) ||
+                         (j == 0 || j == 6);
 
-            let width = if corner { 0.01 } else { 0.002 };
-            
-            let color = if corner { [1.0, 1.0, 0.5, 1.0] } else { [1.0, 1.0, 1.0, 0.5] };
-
-            draw::draw_line_world(&a, &b, &color, width, corner, &mut frame, state);
-            draw::draw_line_world(&c, &d, &color, width, corner, &mut frame, state);
-            draw::draw_line_world(&e, &f, &color, width, corner, &mut frame, state);
+            if border {
+                let width = if corner { 0.01 } else { 0.002 };
+                let color = if corner { [1.0, 1.0, 0.5, 1.0] } else { [1.0, 1.0, 1.0, 0.5] };
+    
+                draw::draw_line_world(&a, &b, &color, width, !corner, &mut frame, state);
+                draw::draw_line_world(&c, &d, &color, width, !corner, &mut frame, state);
+                draw::draw_line_world(&e, &f, &color, width, !corner, &mut frame, state);
+            } 
         }
     }
 
@@ -206,11 +203,11 @@ fn main_loop(state: &mut State) {
     // Mouse control
     let mut moving_cube = false;
 
-    if state.lmb.hold {
+    if state.input.lmb.hold || state.input.mmb.hold {
         let intersection = util::intersect_line_sphere(&CUBE_POS, state.mouse_sphere_radius, &[0.0, 0.0, 0.0], &state.mouse_ray);
-        moving_cube = state.lmb.hold && state.start_mouse_sphere_intersection != None && intersection != None;
+        moving_cube = state.start_mouse_sphere_intersection != None && intersection != None;
 
-        if !state.lmb.down { // Already down last frame
+        if !state.input.lmb.down && !state.input.mmb.down { // Already down last frame
             if moving_cube {
                 // Get delta angle
                 let from = state.start_mouse_sphere_intersection.expect("");
@@ -274,18 +271,16 @@ fn main_loop(state: &mut State) {
             state.depth = 0;
         }
 
-        if state.wheel_down {
+        if state.input.wheel_down {
             if state.depth > 0 {
                 state.depth -= 1;
             }
         }
-        else if state.wheel_up {
+        else if state.input.wheel_up {
             if state.depth < ROW_COUNT - 1 {
                 state.depth += 1;
             }
         }
-
-        println!("{}", state.wheel_up);
 
         let mut block_pos = pos.coords;
         if pos.is_wheel_inverted {
@@ -295,8 +290,56 @@ fn main_loop(state: &mut State) {
             block_pos[pos.wheel_direction] = state.depth;
         }
 
-        let billboard_pos = apply_cube_transform(&get_block_coords(&util::vec3i_arr(block_pos), &state), &state);
+        let pos_vec = util::vec3i_arr(block_pos);
+
+        let billboard_pos = apply_cube_transform(&get_block_coords(&pos_vec, &state), &state);
+        let color = vec4::from_values(1.0, 1.0, 1.0, (state.time.time * 10.0).sin() * 0.25 + 0.75);
+        let billboard_uniforms = dynamic_uniform!{
+            tex: &assets::get_texture(&"x.png".to_string(), &state.assets).texture,
+            color: &color,
+        };
         draw::draw_world_billboard(billboard_pos, [0.05, 0.05], 0.0, billboard_shader, Some(billboard_uniforms.clone()), &mut frame, state);
+
+        block_pos[pos.wheel_direction] = 0;
+        let mut a = get_block_coords(&util::vec3i_arr(block_pos), &state);
+        block_pos[pos.wheel_direction] = ROW_COUNT - 1;
+        let mut b = get_block_coords(&util::vec3i_arr(block_pos), &state);
+
+        let half_block_size = state.cube_size / ROW_COUNT as f32 / 2.0;
+
+        let depth_delta = if pos.wheel_direction == 2 { -half_block_size } else { half_block_size };
+        a[pos.wheel_direction] -= depth_delta;
+        b[pos.wheel_direction] += depth_delta;
+
+        let mut a_points: [Vec3; 4] = [[0.0; 3]; 4];
+        let mut b_points: [Vec3; 4] = [[0.0; 3]; 4];
+        let deltas = [[1, 1], [-1, 1], [-1, -1], [1, -1]];
+        for i in 0..4 {
+            let mut line_a = a.clone();
+            let mut line_b = b.clone();
+            line_a[pos.tangent1] += deltas[i][0] as f32 * half_block_size;
+            line_a[pos.tangent2] += deltas[i][1] as f32 * half_block_size;
+            line_b[pos.tangent1] += deltas[i][0] as f32 * half_block_size;
+            line_b[pos.tangent2] += deltas[i][1] as f32 * half_block_size;
+
+            a_points[i] = apply_cube_transform(&line_a, &state);
+            b_points[i] = apply_cube_transform(&line_b, &state);
+
+            draw::draw_line_world(&a_points[i], &b_points[i], &[1.0, 0.0, 0.0, 1.0], 0.01, false, &mut frame, state);
+
+            if i > 0 {
+                draw::draw_line_world(&a_points[i], &a_points[i-1], &[1.0, 0.0, 0.0, 1.0], 0.01, false, &mut frame, state);
+                draw::draw_line_world(&b_points[i], &b_points[i-1], &[1.0, 0.0, 0.0, 1.0], 0.01, false, &mut frame, state);
+            }
+        }
+
+        draw::draw_line_world(&a_points[0], &a_points[3], &[1.0, 0.0, 0.0, 1.0], 0.01, false, &mut frame, state);
+        draw::draw_line_world(&b_points[0], &b_points[3], &[1.0, 0.0, 0.0, 1.0], 0.01, false, &mut frame, state);
+
+        // Submit
+        if state.input.rmb.up {
+            game::set_block(&pos_vec, game::BlockType::Cross, state);
+        }
         
         state.last_face_id = pos.face_id;
     }
@@ -348,6 +391,8 @@ pub struct CubePosition {
     pub world_pos: Vec3,
     pub coords: [i32; 3],
     pub wheel_direction: usize,
+    pub tangent1: usize,
+    pub tangent2: usize,
     pub is_wheel_inverted: bool,
     pub face_id: i32,
 }
@@ -403,7 +448,6 @@ fn get_mouse_pos_on_cube(state: &State) -> Option<CubePosition> {
         let transformed_origin = apply_cube_transform(&origin[i], &state);
 
         // Ignore if facing away
-        // FIXME: can be considered facing in the right direction when doesn't
         if !is_pointing_towards_camera(&transformed_origin, &transformed_normal) {
             continue;
         }  
@@ -431,6 +475,8 @@ fn get_mouse_pos_on_cube(state: &State) -> Option<CubePosition> {
             world_pos: intersection,
             coords: res,
             wheel_direction: (coords[i][2].abs() - 1) as usize,
+            tangent1: (coords[i][0] - 1) as usize,
+            tangent2: (coords[i][1] - 1) as usize,
             is_wheel_inverted: coords[i][2] > 0,
             face_id: i as i32,
         });

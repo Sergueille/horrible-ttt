@@ -7,7 +7,7 @@ use crate::util::Vec3i;
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum BlockType {
-    A, B, Empty
+    Cross, Circle, Empty
 }
 
 pub fn pos_to_id(pos: &Vec3i) -> i32 {

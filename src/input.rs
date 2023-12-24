@@ -1,11 +1,30 @@
 use crate::state;
 use crate::util;
 
+pub struct Input {
+    pub lmb: crate::input::ButtonInfo,
+    pub rmb: crate::input::ButtonInfo,
+    pub mmb: crate::input::ButtonInfo,
+
+    pub wheel_up: bool,
+    pub wheel_down: bool,
+}
+
 // Is a button pressed?
 pub struct ButtonInfo {
     pub down: bool, // The button went from unpressed to pressed
     pub up: bool, // The button went from pressed to unpressed
     pub hold: bool, // Th button is pressed
+}
+
+pub fn get_input() -> Input {
+    return Input {
+        lmb: get_info(),
+        rmb: get_info(),
+        mmb: get_info(),
+        wheel_up: false,
+        wheel_down: false,
+    };
 }
 
 pub fn get_info() -> ButtonInfo {
@@ -36,7 +55,7 @@ pub fn reset_info(info: &mut ButtonInfo) {
     info.up = false;
 }
 
-pub fn handle_input<T>(event: &winit::event::Event<T>, control_flow: &mut winit::event_loop::ControlFlow, state: &mut state::State) {
+pub fn get_events<T>(event: &winit::event::Event<T>, control_flow: &mut winit::event_loop::ControlFlow, state: &mut state::State) {
     match event {
         winit::event::Event::WindowEvent { event, .. } => match event {
             winit::event::WindowEvent::CloseRequested => { // Close window
@@ -50,9 +69,9 @@ pub fn handle_input<T>(event: &winit::event::Event<T>, control_flow: &mut winit:
             },
             winit::event::WindowEvent::MouseInput { device_id: _, state: action, button, .. } => { // Get mouse buttons
                 match button {
-                    winit::event::MouseButton::Left => update_info(&action, &mut state.lmb),
-                    winit::event::MouseButton::Right => update_info(&action, &mut state.rmb),
-                    winit::event::MouseButton::Middle => update_info(&action, &mut state.mmb),
+                    winit::event::MouseButton::Left => update_info(&action, &mut state.input.lmb),
+                    winit::event::MouseButton::Right => update_info(&action, &mut state.input.rmb),
+                    winit::event::MouseButton::Middle => update_info(&action, &mut state.input.mmb),
                     winit::event::MouseButton::Other(_) => {},
                 }
             }
@@ -60,18 +79,18 @@ pub fn handle_input<T>(event: &winit::event::Event<T>, control_flow: &mut winit:
                 match delta {
                     winit::event::MouseScrollDelta::LineDelta(_, y) => {
                         if *y > 0.0 {
-                            state.wheel_up = true;
+                            state.input.wheel_up = true;
                         } 
                         else if *y < 0.0 {
-                            state.wheel_down = true;
+                            state.input.wheel_down = true;
                         }
                     },
                     winit::event::MouseScrollDelta::PixelDelta(pos) => {
                         if pos.y > 0.0 {
-                            state.wheel_up = true;
+                            state.input.wheel_up = true;
                         } 
                         else if pos.y < 0.0 {
-                            state.wheel_down = true;
+                            state.input.wheel_down = true;
                         }
                     }
                 }
@@ -85,10 +104,10 @@ pub fn handle_input<T>(event: &winit::event::Event<T>, control_flow: &mut winit:
 
 // Call this every frame, before getting events
 pub fn reset_input(state: &mut state::State) {
-    reset_info(&mut state.lmb);
-    reset_info(&mut state.rmb);
-    reset_info(&mut state.mmb);
+    reset_info(&mut state.input.lmb);
+    reset_info(&mut state.input.rmb);
+    reset_info(&mut state.input.mmb);
 
-    state.wheel_up = false;
-    state.wheel_down = false;
+    state.input.wheel_up = false;
+    state.input.wheel_down = false;
 }

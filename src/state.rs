@@ -27,12 +27,7 @@ pub struct State {
     pub mouse_ray: Vec3,
     pub last_main_time: f32,
 
-    pub lmb: crate::input::ButtonInfo,
-    pub rmb: crate::input::ButtonInfo,
-    pub mmb: crate::input::ButtonInfo,
-
-    pub wheel_up: bool,
-    pub wheel_down: bool,
+    pub input: input::Input,
 
     // Game
     pub cube_transform_matrix: Mat4,

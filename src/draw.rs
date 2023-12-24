@@ -121,8 +121,8 @@ pub fn draw_line_world(a: &Vec3, b: &Vec3, color: &Vec4, width: f32, cheap: bool
         ratio: &ratio, 
     };
     
-    let shader = if cheap { assets::get_shader(&"line".to_string(), &state.assets)       } 
-                 else     { assets::get_shader(&"cheap_line".to_string(), &state.assets) };
+    let shader = if cheap { assets::get_shader(&"cheap_line".to_string(), &state.assets) } 
+                 else     { assets::get_shader(&"line".to_string(), &state.assets)       };
 
     draw_screen_billboard([position[0], position[1], 0.0], size, rotation, shader, Some(uniforms), frame, state);
 }
