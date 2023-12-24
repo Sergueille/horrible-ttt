@@ -32,6 +32,10 @@ pub fn vec3i(x: i32, y: i32, z: i32) -> Vec3i {
     return Vec3i { x, y, z };
 }
 
+pub fn vec3i_arr(coords: [i32; 3]) -> Vec3i {
+    return Vec3i { x: coords[0], y: coords[1], z: coords[2] };
+}
+
 pub fn mat_to_uniform(mat: Mat4) -> [[f32; 4]; 4] {
     return [
         [mat[0], mat[1], mat[2], mat[3]],

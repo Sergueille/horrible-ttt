@@ -34,7 +34,7 @@ implement_vertex!(Vertex, pos, uv);
 
 const MAX_FPS: i32 = 100; 
 const ROW_COUNT: i32 = 6;
-const ROTATE_SPEED_DECREASE: f32 = 250.0;
+const ROTATE_SPEED_DECREASE: f32 = 500.0;
 const CUBE_POS: [f32; 3] = [0.0, 0.0, -5.0];
 static FOV: f32 = PI / 4.0;
 
@@ -169,7 +169,8 @@ fn main_loop(state: &mut State) {
     
     state.cube_transform_matrix = transform_mat;
 
-    // frame.draw(&state.cube_vertices, &state.cube_indices, &test_shader2.program, &uniforms, &params).expect("Failed to draw!");
+    // Get intersection with cube
+    let pos_on_cube = get_mouse_pos_on_cube(&state);
 
     // Draw lines
     for i in [0, 6, 1, 2, 3, 4, 5] {
@@ -198,9 +199,12 @@ fn main_loop(state: &mut State) {
     }
 
     // TEST: draw crosses
-    let billboard_shader = assets::get_shader(&"default".to_string(), &state);    
+    let billboard_shader = assets::get_shader(&"default".to_string(), &state.assets);  
+
+    let color = vec4::from_values(1.0, 1.0, 1.0, 1.0);
     let billboard_uniforms = dynamic_uniform!{
-        tex: &assets::get_texture(&"x.png".to_string(), &state).texture,
+        tex: &assets::get_texture(&"x.png".to_string(), &state.assets).texture,
+        color: &color,
     };
     for i in 0..ROW_COUNT {
         for j in 0..ROW_COUNT {
@@ -255,10 +259,9 @@ fn main_loop(state: &mut State) {
             }
         }
         else {
-            let pos_on_cube = get_mouse_pos_on_cube(&state);
 
             match pos_on_cube {
-                Some(pos) => {
+                Some(ref pos) => {
                     let mut tmp1 = vec3::create();
                     let mut tmp2 = vec3::create();
 
@@ -269,6 +272,7 @@ fn main_loop(state: &mut State) {
 
                     vec3::sub(&mut tmp1, &pos.world_pos, &CUBE_POS);
                     state.mouse_sphere_radius = vec3::len(&tmp1);
+
                 }
                 None => {
                     state.start_mouse_sphere_intersection = None;
@@ -279,6 +283,11 @@ fn main_loop(state: &mut State) {
 
             state.drag_start_rotation = state.cube_rotation.clone();
         }
+    }
+
+    if pos_on_cube.is_some() {
+        let billboard_pos = apply_cube_transform(&get_block_coords(&util::vec3i_arr(pos_on_cube.expect("").coords), &state), &state);
+        draw::draw_world_billboard(billboard_pos, [0.05, 0.05], 0.0, billboard_shader, Some(billboard_uniforms.clone()), &mut frame, state)
     }
 
     if !moving_cube {
@@ -317,13 +326,14 @@ fn get_block_coords(pos: &Vec3i, state: &State) -> Vec3 {
     return [
         -(block_size * (ROW_COUNT - 1) as f32 / 2.0) + pos.x as f32 * block_size,
         -(block_size * (ROW_COUNT - 1) as f32 / 2.0) + pos.y as f32 * block_size,
-        -(block_size * (ROW_COUNT - 1) as f32 / 2.0) + pos.z as f32 * block_size,
+        (block_size * (ROW_COUNT - 1) as f32 / 2.0) - pos.z as f32 * block_size,
     ];
 }
 
 pub struct CubePosition {
     world_pos: Vec3,
-    // TODO
+    coords: [i32; 3],
+    wheel_direction: [i32; 3],
 }
 
 fn get_mouse_pos_on_cube(state: &State) -> Option<CubePosition> {
@@ -362,6 +372,16 @@ fn get_mouse_pos_on_cube(state: &State) -> Option<CubePosition> {
         [-1.0, -1.0, 1.0],
     ];
 
+    // 1: x, 2: y, 3: z, negative means inverted
+    let coords: [[i32; 3]; 6] = [
+        [3, 2, 1],
+        [3, 2, -1],
+        [3, 1, 2],
+        [3, 1, -2],
+        [1, 2, 3],
+        [1, 2, -3],
+    ];
+
     for i in 0..6 {
         let transformed_normal = apply_cube_rotation(&normals[i], &state);
 
@@ -389,8 +409,28 @@ fn get_mouse_pos_on_cube(state: &State) -> Option<CubePosition> {
             continue;
         }
 
+        let block_coords = [
+            (plane_coords[0] / state.cube_size * 6.0).floor() as i32,
+            (plane_coords[1] / state.cube_size * 6.0).floor() as i32,
+        ];
+
+        let mut res = [0, 0, 0];
+        res[(coords[i][0] - 1) as usize] = block_coords[0];
+        res[(coords[i][1] - 1) as usize] = block_coords[1];
+
+        let mut wheel_direction = [0, 0, 0];
+        if coords[i][2] > 0 {
+            wheel_direction[(coords[i][2] - 1) as usize] = 1;
+        }
+        else {
+            
+            wheel_direction[(-coords[i][2] - 1) as usize] = -1;
+        }
+
         return Some(CubePosition {
             world_pos: intersection,
+            coords: res,
+            wheel_direction,
         });
     }
 
