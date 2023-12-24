@@ -14,6 +14,7 @@ extern crate glium;
 extern crate gl_matrix;
 
 use std::env;
+use std::f32::consts::E;
 
 use gl_matrix::quat;
 use gl_matrix::vec2;
@@ -73,6 +74,8 @@ fn main() {
         lmb: input::get_info(),
         rmb: input::get_info(),
         mmb: input::get_info(),
+        wheel_up: false,
+        wheel_down: false,
 
         cube_transform_matrix: mat4::create(),
         cube_rotation: quat::create(),
@@ -84,6 +87,8 @@ fn main() {
         last_mouse_sphere_intersection: None,
         mouse_sphere_radius: 0.0,
         drag_start_rotation: quat::create(),
+        last_face_id: -1,
+        depth: 0,
     };
 
     // Reset rotation
@@ -97,34 +102,12 @@ fn main() {
     texture::create_to_assets("x.png", &mut state);
     texture::create_to_assets("sandwich.png", &mut state);
 
-    event_loop.run(move |ev, _, control_flow| {
+    event_loop.run(move |event, _, control_flow| {
 
         // Remember last mouse position
         let old_mous_pos = state.mouse_coords_normalized;
 
-        match ev {
-            winit::event::Event::WindowEvent { event, .. } => match event {
-                winit::event::WindowEvent::CloseRequested => { // Close window
-                    *control_flow = winit::event_loop::ControlFlow::Exit;
-                },
-                winit::event::WindowEvent::CursorMoved { position, .. } => { // Get mouse position
-                    state.mouse_coords_pixels = vec2i(position.x as i32, state.resolution.y as i32 - position.y as i32);
-                    state.mouse_coords_normalized = [state.mouse_coords_pixels.x as f32 / state.resolution.y as f32, state.mouse_coords_pixels.y as f32 / state.resolution.y as f32];
-                    state.mouse_ray = util::get_mouse_ray(&state);
-
-                },
-                winit::event::WindowEvent::MouseInput { device_id: _, state: action, button, .. } => { // Get mouse buttons
-                    match button {
-                        winit::event::MouseButton::Left => input::update_info(&action, &mut state.lmb),
-                        winit::event::MouseButton::Right => input::update_info(&action, &mut state.rmb),
-                        winit::event::MouseButton::Middle => input::update_info(&action, &mut state.mmb),
-                        winit::event::MouseButton::Other(_) => {},
-                    }
-                }
-                _ => (),
-            },
-            _ => (),
-        }
+        input::handle_input(&event, control_flow, &mut state);
 
         // Get mouse delta position
         vec2::sub(&mut state.mouse_delta_normalized, &state.mouse_coords_normalized, &old_mous_pos);
@@ -144,9 +127,7 @@ fn main() {
             state.last_main_time = state.time.time;
             
             // reset button states
-            input::reset_info(&mut state.lmb);
-            input::reset_info(&mut state.rmb);
-            input::reset_info(&mut state.mmb);
+            input::reset_input(&mut state);
         }
     });
 }
@@ -286,8 +267,41 @@ fn main_loop(state: &mut State) {
     }
 
     if pos_on_cube.is_some() {
-        let billboard_pos = apply_cube_transform(&get_block_coords(&util::vec3i_arr(pos_on_cube.expect("").coords), &state), &state);
-        draw::draw_world_billboard(billboard_pos, [0.05, 0.05], 0.0, billboard_shader, Some(billboard_uniforms.clone()), &mut frame, state)
+        let pos = pos_on_cube.expect("");
+
+        // Handle wheel
+        if pos.face_id != state.last_face_id {
+            state.depth = 0;
+        }
+
+        if state.wheel_down {
+            if state.depth > 0 {
+                state.depth -= 1;
+            }
+        }
+        else if state.wheel_up {
+            if state.depth < ROW_COUNT - 1 {
+                state.depth += 1;
+            }
+        }
+
+        println!("{}", state.wheel_up);
+
+        let mut block_pos = pos.coords;
+        if pos.is_wheel_inverted {
+            block_pos[pos.wheel_direction] = ROW_COUNT - 1 - state.depth;
+        }
+        else {
+            block_pos[pos.wheel_direction] = state.depth;
+        }
+
+        let billboard_pos = apply_cube_transform(&get_block_coords(&util::vec3i_arr(block_pos), &state), &state);
+        draw::draw_world_billboard(billboard_pos, [0.05, 0.05], 0.0, billboard_shader, Some(billboard_uniforms.clone()), &mut frame, state);
+        
+        state.last_face_id = pos.face_id;
+    }
+    else {
+        state.last_face_id = -1;
     }
 
     if !moving_cube {
@@ -331,9 +345,11 @@ fn get_block_coords(pos: &Vec3i, state: &State) -> Vec3 {
 }
 
 pub struct CubePosition {
-    world_pos: Vec3,
-    coords: [i32; 3],
-    wheel_direction: [i32; 3],
+    pub world_pos: Vec3,
+    pub coords: [i32; 3],
+    pub wheel_direction: usize,
+    pub is_wheel_inverted: bool,
+    pub face_id: i32,
 }
 
 fn get_mouse_pos_on_cube(state: &State) -> Option<CubePosition> {
@@ -374,36 +390,29 @@ fn get_mouse_pos_on_cube(state: &State) -> Option<CubePosition> {
 
     // 1: x, 2: y, 3: z, negative means inverted
     let coords: [[i32; 3]; 6] = [
-        [3, 2, 1],
         [3, 2, -1],
-        [3, 1, 2],
+        [3, 2, 1],
         [3, 1, -2],
+        [3, 1, 2],
         [1, 2, 3],
         [1, 2, -3],
     ];
 
     for i in 0..6 {
         let transformed_normal = apply_cube_rotation(&normals[i], &state);
+        let transformed_origin = apply_cube_transform(&origin[i], &state);
 
         // Ignore if facing away
         // FIXME: can be considered facing in the right direction when doesn't
-        if transformed_normal[2] < 0.0 {
+        if !is_pointing_towards_camera(&transformed_origin, &transformed_normal) {
             continue;
         }  
 
-        let transformed_origin = apply_cube_transform(&origin[i], &state);
         let transformed_t1 = apply_cube_rotation(&tangent1[i], &state);
         let transformed_t2 = apply_cube_rotation(&tangent2[i], &state);
 
         let intersection = util::intersect_line_plane(&transformed_origin, &transformed_normal, &[0.0, 0.0, 0.0], &state.mouse_ray);
         let plane_coords = util::get_plane_coords(&transformed_origin, &transformed_t1, &transformed_t2, &intersection);
-
-        if i == 2 {
-            util::print_vec3(intersection);
-            util::print_vec3(transformed_origin);
-            util::print_vec2(plane_coords);
-            println!("");
-        }
 
         if plane_coords[0] < 0.0 || plane_coords[0] > state.cube_size || plane_coords[1] < 0.0 || plane_coords[1] > state.cube_size {
             continue;
@@ -418,19 +427,12 @@ fn get_mouse_pos_on_cube(state: &State) -> Option<CubePosition> {
         res[(coords[i][0] - 1) as usize] = block_coords[0];
         res[(coords[i][1] - 1) as usize] = block_coords[1];
 
-        let mut wheel_direction = [0, 0, 0];
-        if coords[i][2] > 0 {
-            wheel_direction[(coords[i][2] - 1) as usize] = 1;
-        }
-        else {
-            
-            wheel_direction[(-coords[i][2] - 1) as usize] = -1;
-        }
-
         return Some(CubePosition {
             world_pos: intersection,
             coords: res,
-            wheel_direction,
+            wheel_direction: (coords[i][2].abs() - 1) as usize,
+            is_wheel_inverted: coords[i][2] > 0,
+            face_id: i as i32,
         });
     }
 

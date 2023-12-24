@@ -1,4 +1,6 @@
 
+use std::vec;
+
 use crate::*;
 use crate::state::State;
 use crate::util::Vec3i;
@@ -14,4 +16,8 @@ pub fn pos_to_id(pos: &Vec3i) -> i32 {
 
 pub fn get_block(pos: &Vec3i, state: &State) -> BlockType {
     return state.blocks[pos_to_id(&pos) as usize];
+}
+
+pub fn set_block(pos: &Vec3i, value: BlockType, state: &mut State) {
+    state.blocks[pos_to_id(&pos) as usize] = value;
 }

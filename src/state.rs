@@ -31,6 +31,9 @@ pub struct State {
     pub rmb: crate::input::ButtonInfo,
     pub mmb: crate::input::ButtonInfo,
 
+    pub wheel_up: bool,
+    pub wheel_down: bool,
+
     // Game
     pub cube_transform_matrix: Mat4,
     pub cube_rotation: Quat,
@@ -42,5 +45,8 @@ pub struct State {
     pub start_mouse_sphere_intersection: Option<Vec3>,
     pub mouse_sphere_radius: f32,
     pub drag_start_rotation: Quat,
+
+    pub last_face_id: i32,
+    pub depth: i32,
 }
 
