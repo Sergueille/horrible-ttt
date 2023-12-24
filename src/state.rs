@@ -21,9 +21,10 @@ pub struct State {
     pub camera_projection_mat: Mat4,
     pub assets: crate::assets::AssetBase,
     pub display: glium::Display<glium::glutin::surface::WindowSurface>,
-    pub mouse_coords_pixels: Vec2u,
+    pub mouse_coords_pixels: Vec2i,
     pub mouse_coords_normalized: Vec2,
     pub mouse_delta_normalized: Vec2,
+    pub mouse_ray: Vec3,
     pub last_main_time: f32,
 
     pub lmb: crate::input::ButtonInfo,
@@ -36,8 +37,10 @@ pub struct State {
     pub cube_size: f32,
     pub blocks: [game::BlockType; (ROW_COUNT * ROW_COUNT * ROW_COUNT) as usize],
     pub cube_rotation_velocity: Quat,
-
-    // TODO: should also retain the sphere radius
+    
     pub last_mouse_sphere_intersection: Option<Vec3>,
+    pub start_mouse_sphere_intersection: Option<Vec3>,
+    pub mouse_sphere_radius: f32,
+    pub drag_start_rotation: Quat,
 }
 

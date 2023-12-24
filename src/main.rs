@@ -34,8 +34,8 @@ implement_vertex!(Vertex, pos, uv);
 
 const MAX_FPS: i32 = 100; 
 const ROW_COUNT: i32 = 6;
-const ROTATE_MULT: f32 = 1.8; // HACK: temporary solution
-const ROTATE_SPEED_DECREASE: f32 = 250.0; // TEST
+const ROTATE_SPEED_DECREASE: f32 = 250.0;
+const CUBE_POS: [f32; 3] = [0.0, 0.0, -5.0];
 static FOV: f32 = PI / 4.0;
 
 fn main() {
@@ -65,8 +65,9 @@ fn main() {
         assets: assets::crate_base(),
         display,
         mouse_coords_normalized: [0.0, 0.0],
-        mouse_coords_pixels: vec2u(0, 0),
+        mouse_coords_pixels: vec2i(0, 0),
         mouse_delta_normalized: [0.0, 0.0],
+        mouse_ray: vec3::create(),
         last_main_time: 0.0,
 
         lmb: input::get_info(),
@@ -79,7 +80,10 @@ fn main() {
         cube_size: 2.0,
 
         blocks: [game::BlockType::Empty; (ROW_COUNT * ROW_COUNT * ROW_COUNT) as usize],
+        start_mouse_sphere_intersection: None,
         last_mouse_sphere_intersection: None,
+        mouse_sphere_radius: 0.0,
+        drag_start_rotation: quat::create(),
     };
 
     // Reset rotation
@@ -100,14 +104,16 @@ fn main() {
 
         match ev {
             winit::event::Event::WindowEvent { event, .. } => match event {
-                winit::event::WindowEvent::CloseRequested => {
+                winit::event::WindowEvent::CloseRequested => { // Close window
                     *control_flow = winit::event_loop::ControlFlow::Exit;
                 },
-                winit::event::WindowEvent::CursorMoved { position, .. } => {
-                    state.mouse_coords_pixels = vec2u(position.x as u32, state.resolution.y - position.y as u32);
+                winit::event::WindowEvent::CursorMoved { position, .. } => { // Get mouse position
+                    state.mouse_coords_pixels = vec2i(position.x as i32, state.resolution.y as i32 - position.y as i32);
                     state.mouse_coords_normalized = [state.mouse_coords_pixels.x as f32 / state.resolution.y as f32, state.mouse_coords_pixels.y as f32 / state.resolution.y as f32];
+                    state.mouse_ray = util::get_mouse_ray(&state);
+
                 },
-                winit::event::WindowEvent::MouseInput { device_id: _, state: action, button, .. } => {
+                winit::event::WindowEvent::MouseInput { device_id: _, state: action, button, .. } => { // Get mouse buttons
                     match button {
                         winit::event::MouseButton::Left => input::update_info(&action, &mut state.lmb),
                         winit::event::MouseButton::Right => input::update_info(&action, &mut state.rmb),
@@ -148,10 +154,12 @@ fn main() {
 fn main_loop(state: &mut State) {
     let mut frame = state.display.draw();
 
+    // Clear buffer
     frame.clear_all((0.1, 0.3, 0.05, 1.0), 100000.0, 0);
 
+    // Create the transform matrix of the cube
     let mut translate_mat: Mat4 = mat4::create();
-    mat4::from_translation(&mut translate_mat, &[0.0,0.0, -5.0]);
+    mat4::from_translation(&mut translate_mat, &CUBE_POS);
     
     let mut rotation_mat = mat4::create();
     mat4::from_quat(&mut rotation_mat, &state.cube_rotation);
@@ -208,45 +216,72 @@ fn main_loop(state: &mut State) {
         }
     }
 
-    frame.clear_depth(10000.0);
+    frame.clear_depth(10000.0); // Clear depth buffer to make the UI appear in front
 
     // Mouse control
+    let mut moving_cube = false;
+
     if state.lmb.hold {
-        let mouse_ray = util::get_mouse_ray(&state);
-        let intersection = util::intersect_line_sphere(&[0.0, 0.0, -5.0], 2.0, &[0.0, 0.0, 0.0], &mouse_ray);
+        let intersection = util::intersect_line_sphere(&CUBE_POS, state.mouse_sphere_radius, &[0.0, 0.0, 0.0], &state.mouse_ray);
+        moving_cube = state.lmb.hold && state.start_mouse_sphere_intersection != None && intersection != None;
 
-        // TODO: looks like when delta mouse is too small, rotation is ignored because of precision issues,
-        //       so the rotation doesn't follow the mouse
         if !state.lmb.down { // Already down last frame
-            if intersection != None && state.last_mouse_sphere_intersection != None {
+            if moving_cube {
                 // Get delta angle
-                let from = intersection.expect("");
-                let to = state.last_mouse_sphere_intersection.expect("");
+                let from = state.start_mouse_sphere_intersection.expect("");
+                let mut to = intersection.expect("");
 
-                let mut from_n = vec3::create();
-                let mut to_n = vec3::create();
-                vec3::normalize(&mut from_n, &from);
-                vec3::normalize(&mut to_n, &to);
+                let mut to_tmp = vec3::create();
+                vec3::sub(&mut to_tmp, &to, &CUBE_POS);
+                vec3::normalize(&mut to, &to_tmp);
 
                 let mut delta = quat::create();
-                quat::rotation_to(&mut delta, &from_n, &to_n);
+                quat::rotation_to(&mut delta, &from, &to); // Rotation from old vector to new vector
 
-                let multiplied = util::multiply_quat(&delta, ROTATE_MULT); // ~ "Multiply" the quaternion
+                quat::mul(&mut state.cube_rotation, &delta, &state.drag_start_rotation);
 
-                let mut new_rotation = quat::create();
-                quat::mul(&mut new_rotation, &multiplied, &state.cube_rotation);
-                state.cube_rotation = new_rotation;
-                
-                let test_shader = assets::get_shader(&"test".to_string(), &state);      
-                draw::draw_world_billboard(intersection.expect(""), [0.04, 0.04], 0.0, test_shader, None, &mut frame, state);
+                state.cube_rotation_velocity = delta;
 
-                state.cube_rotation_velocity = multiplied;
-            }   
+                match state.last_mouse_sphere_intersection {
+                    Some(vec) => {
+                        quat::rotation_to(&mut state.cube_rotation_velocity, &vec, &to);
+                    },
+                    None => {
+                        quat::identity(&mut state.cube_rotation_velocity);
+                    }
+                }
+
+                state.last_mouse_sphere_intersection = Some(to);
+            }
         }
+        else {
+            let pos_on_cube = get_mouse_pos_on_cube(&state);
 
-        state.last_mouse_sphere_intersection = intersection;
+            match pos_on_cube {
+                Some(pos) => {
+                    let mut tmp1 = vec3::create();
+                    let mut tmp2 = vec3::create();
+
+                    vec3::sub(&mut tmp1, &pos.world_pos, &CUBE_POS);
+                    vec3::normalize(&mut tmp2, &tmp1);
+                    state.start_mouse_sphere_intersection = Some(tmp2);
+                    state.last_mouse_sphere_intersection = Some(tmp2);
+
+                    vec3::sub(&mut tmp1, &pos.world_pos, &CUBE_POS);
+                    state.mouse_sphere_radius = vec3::len(&tmp1);
+                }
+                None => {
+                    state.start_mouse_sphere_intersection = None;
+                    state.last_mouse_sphere_intersection = None;
+                    state.mouse_sphere_radius = 0.0;
+                }
+            }
+
+            state.drag_start_rotation = state.cube_rotation.clone();
+        }
     }
-    else {
+
+    if !moving_cube {
         // Decrease velocity
         state.cube_rotation_velocity = util::multiply_quat(&state.cube_rotation_velocity, (-state.time.delta_time * ROTATE_SPEED_DECREASE).exp()) ;
 
@@ -270,6 +305,12 @@ fn apply_cube_transform(vec: &Vec3, state: &State) -> Vec3 {
     return [res[0], res[1], res[2]];
 }
 
+fn apply_cube_rotation(vec: &Vec3, state: &State) -> Vec3 {
+    let mut res = vec3::create();
+    vec3::transform_quat(&mut res, &vec, &state.cube_rotation);
+    return res;
+}
+
 fn get_block_coords(pos: &Vec3i, state: &State) -> Vec3 {
     let block_size = state.cube_size / ROW_COUNT as f32;
     
@@ -278,4 +319,80 @@ fn get_block_coords(pos: &Vec3i, state: &State) -> Vec3 {
         -(block_size * (ROW_COUNT - 1) as f32 / 2.0) + pos.y as f32 * block_size,
         -(block_size * (ROW_COUNT - 1) as f32 / 2.0) + pos.z as f32 * block_size,
     ];
+}
+
+pub struct CubePosition {
+    world_pos: Vec3,
+    // TODO
+}
+
+fn get_mouse_pos_on_cube(state: &State) -> Option<CubePosition> {
+    let normals = [
+        [-1.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, -1.0, 0.0],
+        [0.0, 1.0, 0.0],
+        [0.0, 0.0, -1.0],
+        [0.0, 0.0, 1.0],
+    ];
+
+    let tangent1 = [
+        [0.0, 0.0, -1.0],
+        [0.0, 0.0, -1.0],
+        [0.0, 0.0, -1.0],
+        [0.0, 0.0, -1.0],
+        [1.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+    ];
+    let tangent2 = [
+        [0.0, 1.0, 0.0],
+        [0.0, 1.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        [0.0, 1.0, 0.0],
+    ];
+
+    let origin = [
+        [-1.0, -1.0, 1.0],
+        [1.0, -1.0, 1.0],
+        [-1.0, -1.0, 1.0],
+        [-1.0, 1.0, 1.0],
+        [-1.0, -1.0, -1.0],
+        [-1.0, -1.0, 1.0],
+    ];
+
+    for i in 0..6 {
+        let transformed_normal = apply_cube_rotation(&normals[i], &state);
+
+        // Ignore if facing away
+        // FIXME: can be considered facing in the right direction when doesn't
+        if transformed_normal[2] < 0.0 {
+            continue;
+        }  
+
+        let transformed_origin = apply_cube_transform(&origin[i], &state);
+        let transformed_t1 = apply_cube_rotation(&tangent1[i], &state);
+        let transformed_t2 = apply_cube_rotation(&tangent2[i], &state);
+
+        let intersection = util::intersect_line_plane(&transformed_origin, &transformed_normal, &[0.0, 0.0, 0.0], &state.mouse_ray);
+        let plane_coords = util::get_plane_coords(&transformed_origin, &transformed_t1, &transformed_t2, &intersection);
+
+        if i == 2 {
+            util::print_vec3(intersection);
+            util::print_vec3(transformed_origin);
+            util::print_vec2(plane_coords);
+            println!("");
+        }
+
+        if plane_coords[0] < 0.0 || plane_coords[0] > state.cube_size || plane_coords[1] < 0.0 || plane_coords[1] > state.cube_size {
+            continue;
+        }
+
+        return Some(CubePosition {
+            world_pos: intersection,
+        });
+    }
+
+    return None;
 }

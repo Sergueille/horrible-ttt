@@ -75,6 +75,10 @@ pub fn print_vec3(vec: Vec3) {
     println!("");
 }
 
+pub fn print_vec2(vec: Vec2) {
+    println!("{} {}", vec[0], vec[1]);
+}
+
 pub fn divide_by_w(vec: Vec4) -> Vec4 {
     return [
         vec[0] / vec[3],
@@ -174,11 +178,22 @@ pub fn intersect_line_plane(p: &Vec3, n: &Vec3, a: &Vec3, v: &Vec3) -> Vec3 {
     let mut diff = vec3::create();
     vec3::sub(&mut diff, &a, &p);
     
-    let t = vec3::dot(&n, &diff) / vec3::dot(&v, &n);
+    let t = -vec3::dot(&n, &diff) / vec3::dot(&v, &n);
 
     let mut res = vec3::create();
     vec3::scale_and_add(&mut res, &a, &v, t);
     return res;
+}
+
+// Gets the coordinates of A, on th plane with origin O tangent vectors t1 and t2
+pub fn get_plane_coords(o: &Vec3, t1: &Vec3, t2: &Vec3, a: &Vec3) -> Vec2 {
+    let mut sub = vec3::create();
+    vec3::sub(&mut sub, a, o);
+
+    return [
+        vec3::dot(&sub, &t1),
+        vec3::dot(&sub, &t2),
+    ]
 }
 
 pub fn multiply_quat(quat: &Quat, scalar: f32) -> Quat {

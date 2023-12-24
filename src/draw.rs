@@ -9,6 +9,7 @@ use glium::Surface;
 use glium::uniforms;
 
 
+// OPTI: group draw calls somehow
 // position:    center of the quad, (0, 0) is bottom left, (1, wh) is the top right, last coordinate is z
 // size:        size of the quad, 1 is screen height
 pub fn draw_screen_billboard<'a, 'b>(position: Vec3, size: Vec2, rotation: f32, shader: &shader::Shader, uniforms: Option<uniforms::DynamicUniforms<'a, 'b>>, frame: &mut glium::Frame, state: &State) {
@@ -67,7 +68,6 @@ pub fn draw_screen_billboard<'a, 'b>(position: Vec3, size: Vec2, rotation: f32, 
 
 }
 
-// FIXME: this is not working
 pub fn draw_line_world(a: &Vec3, b: &Vec3, color: &Vec4, width: f32, cheap: bool, frame: &mut glium::Frame, state: &State) {
     let mut a_screen: Vec4 = vec4::create();
     let mut b_screen: Vec4 = vec4::create();
