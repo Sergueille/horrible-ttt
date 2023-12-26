@@ -6,7 +6,6 @@ pub enum Asset {
     Shader(crate::shader::Shader),
 }
 
-// FIXME: 'static should not be used
 pub type AssetBase = HashMap<String, Asset>;
 
 pub fn crate_base() -> AssetBase {

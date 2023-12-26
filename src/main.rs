@@ -19,7 +19,6 @@ use gl_matrix::quat;
 use gl_matrix::vec2;
 use gl_matrix::vec3;
 use glium::Surface;
-use glium::uniforms;
 use state::State;
 use gl_matrix::common::*;
 use gl_matrix::mat4;
@@ -202,14 +201,12 @@ fn main_loop(state: &mut State) {
 
                     let mut color = if block_type == game::BlockType::Cross { CROSS_COLOR } else { CIRCLE_COLOR };
                     color[3] = 0.3;
+                    draw::draw_world_billboard(position, [0.05, 0.05], 0.0, billboard_shader, Some(billboard_uniforms.clone()), &mut frame, state);
                     draw_cube_on_block_simple(&pos, &color, &mut frame, state);
-                    draw::draw_world_billboard(position, [0.05, 0.05], 0.0, billboard_shader, Some(billboard_uniforms.clone()), &mut frame, state)
                 }
             }
         }
     }
-
-    frame.clear_depth(10000.0); // Clear depth buffer to make the UI appear in front
 
     // Mouse control
     let mut moving_cube = false;
@@ -382,6 +379,8 @@ fn main_loop(state: &mut State) {
 fn apply_cube_transform(vec: &Vec3, state: &State) -> Vec3 {
     let mut res = vec4::create();
     vec4::transform_mat4(&mut res, &[vec[0], vec[1], vec[2], 1.0], &state.cube_transform_matrix);
+    res = util::divide_by_w(res);
+
     return [res[0], res[1], res[2]];
 }
 

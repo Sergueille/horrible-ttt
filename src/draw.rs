@@ -94,7 +94,7 @@ pub fn draw_line_world(a: &Vec3, b: &Vec3, color: &Vec4, width: f32, cheap: bool
     let position = [
         (a_screen[0] + b_screen[0]) / 2.0,
         (a_screen[1] + b_screen[1]) / 2.0,
-        0.0
+        (a_screen[2] + b_screen[2]) / 2.0,
     ];
 
     let mut dist = (a_screen[0] - b_screen[0]) * (a_screen[0] - b_screen[0])
@@ -124,7 +124,7 @@ pub fn draw_line_world(a: &Vec3, b: &Vec3, color: &Vec4, width: f32, cheap: bool
     let shader = if cheap { assets::get_shader(&"cheap_line".to_string(), &state.assets) } 
                  else     { assets::get_shader(&"line".to_string(), &state.assets)       };
 
-    draw_screen_billboard([position[0], position[1], 0.0], size, rotation, shader, Some(uniforms), frame, state);
+    draw_screen_billboard(position, size, rotation, shader, Some(uniforms), frame, state);
 }
 
 pub fn draw_world_billboard<'a, 'b>(position: Vec3, size: Vec2,  rotation: f32, shader: &shader::Shader, uniforms: Option<uniforms::DynamicUniforms<'a, 'b>>, frame: &mut glium::Frame, state: &State) {
@@ -145,8 +145,6 @@ pub fn draw_world_billboard<'a, 'b>(position: Vec3, size: Vec2,  rotation: f32, 
     // Make smaller when distant
     let len = screen_position[2];
     let scale_screen = [size[0] / len, size[1] / len];
-
-    screen_position[2] = 0.0;
 
     draw_screen_billboard(util::vec4_to_3(&screen_position), scale_screen, rotation, shader, uniforms, frame, state)
 }

@@ -27,7 +27,7 @@ pub fn create(filename: &str, state: &state::State) -> Texture {
     let image_dimensions = image.dimensions();
     let image_data = glium::texture::RawImage2d::from_raw_rgba_reversed(&image.into_raw(), image_dimensions);
 
-    let texture = glium::texture::SrgbTexture2d::new(&state.display, image_data).unwrap(); // TODO alpha!
+    let texture = glium::texture::SrgbTexture2d::new(&state.display, image_data).unwrap();
 
     return Texture {
         texture: texture,
