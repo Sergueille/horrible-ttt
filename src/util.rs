@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use gl_matrix::{vec3, quat};
 
 use crate::gl_matrix::common::*;
@@ -36,7 +38,7 @@ pub fn vec3i_arr(coords: [i32; 3]) -> Vec3i {
     return Vec3i { x: coords[0], y: coords[1], z: coords[2] };
 }
 
-pub fn mat_to_uniform(mat: Mat4) -> [[f32; 4]; 4] {
+pub fn mat_to_uniform(mat: &Mat4) -> [[f32; 4]; 4] {
     return [
         [mat[0], mat[1], mat[2], mat[3]],
         [mat[4], mat[5], mat[6], mat[7]],
@@ -210,5 +212,5 @@ pub fn multiply_quat(quat: &Quat, scalar: f32) -> Quat {
 
 // FIXME: doesn't work??
 pub fn is_pointing_towards_camera(center: &Vec3, normal: &Vec3) -> bool {
-    return vec3::dot(&center, &normal) < 1.0;
+    return vec3::dot(&center, &normal) < 0.0;
 }

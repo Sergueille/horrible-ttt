@@ -43,15 +43,15 @@ pub fn draw_screen_billboard<'a, 'b>(position: Vec3, size: Vec2, rotation: f32, 
     mat4::mul(transform, &mat4::clone(transform), &rotate_mat);
     mat4::mul(transform, &mat4::clone(transform), &scale_mat);
 
-    let transform_u = util::mat_to_uniform(*transform);
-    let projection_u = util::mat_to_uniform(no_projection_mat);
+    let transform_u = util::mat_to_uniform(&transform);
+    let projection_u = util::mat_to_uniform(&no_projection_mat);
 
     match uniforms.to_owned() {
         Some(mut u) => {
             u.add(&"transform", &transform_u);
             u.add(&"projection", &projection_u);
 
-            frame.draw(&state.cube_vertices, &state.cube_indices, &shader.program, &u, &params)
+            frame.draw(&state.quad_vertices, &state.quad_indices, &shader.program, &u, &params)
                 .expect("Failed to draw!");
         }
         None => {
@@ -60,7 +60,7 @@ pub fn draw_screen_billboard<'a, 'b>(position: Vec3, size: Vec2, rotation: f32, 
                 projection: projection_u
             };
 
-            frame.draw(&state.cube_vertices, &state.cube_indices, &shader.program, &final_uniforms, &params)
+            frame.draw(&state.quad_vertices, &state.quad_indices, &shader.program, &final_uniforms, &params)
                 .expect("Failed to draw!");
         }
     }
@@ -149,4 +149,39 @@ pub fn draw_world_billboard<'a, 'b>(position: Vec3, size: Vec2,  rotation: f32, 
     screen_position[2] = 0.0;
 
     draw_screen_billboard(util::vec4_to_3(&screen_position), scale_screen, rotation, shader, uniforms, frame, state)
+}
+
+pub fn draw_cube<'a, 'b>(transform: &Mat4, shader: &shader::Shader, uniforms: Option<uniforms::DynamicUniforms<'a, 'b>>, frame: &mut glium::Frame, state: &State) {
+    let params = glium::DrawParameters {
+        depth: glium::Depth {
+            test: glium::DepthTest::IfLess,
+            write: true,
+            .. Default::default()
+        },
+        backface_culling: glium::draw_parameters::BackfaceCullingMode::CullClockwise,
+        blend: glium::Blend::alpha_blending(),
+        .. Default::default()
+    };
+
+    let transform_mat = util::mat_to_uniform(transform);
+    let projection_mat = util::mat_to_uniform(&state.camera_projection_mat);
+
+    match uniforms {
+        None => {
+            let final_uniforms = uniform! {
+                transform: transform_mat,
+                projection: projection_mat
+            };
+
+            frame.draw(&state.cube_vertices, &state.cube_indices, &shader.program, &final_uniforms, &params)
+                .expect("Failed to draw!");
+        }
+        Some(mut u) => {
+            u.add(&"transform", &transform_mat);
+            u.add(&"projection", &projection_mat);
+
+            frame.draw(&state.cube_vertices, &state.cube_indices, &shader.program, &u, &params)
+                .expect("Failed to draw!");
+        }
+    }
 }

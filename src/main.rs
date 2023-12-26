@@ -19,6 +19,7 @@ use gl_matrix::quat;
 use gl_matrix::vec2;
 use gl_matrix::vec3;
 use glium::Surface;
+use glium::uniforms;
 use state::State;
 use gl_matrix::common::*;
 use gl_matrix::mat4;
@@ -37,6 +38,10 @@ const ROW_COUNT: i32 = 6;
 const ROTATE_SPEED_DECREASE: f32 = 500.0;
 const CUBE_POS: [f32; 3] = [0.0, 0.0, -5.0];
 static FOV: f32 = PI / 4.0;
+
+// TEST
+const CROSS_COLOR: Vec4 = [0.9, 0.2, 0.2, 1.0];
+const CIRCLE_COLOR: Vec4 = [0.2, 0.2, 0.9, 1.0];
 
 fn main() {
     env::set_var("RUST_BACKTRACE", "1");
@@ -83,6 +88,7 @@ fn main() {
         drag_start_rotation: quat::create(),
         last_face_id: -1,
         depth: 0,
+        is_cross_turn: true,
     };
 
     // Reset rotation
@@ -94,6 +100,7 @@ fn main() {
 
     // TEST: create some textures
     texture::create_to_assets("x.png", &mut state);
+    texture::create_to_assets("o.png", &mut state);
     texture::create_to_assets("sandwich.png", &mut state);
 
     event_loop.run(move |event, _, control_flow| {
@@ -177,11 +184,10 @@ fn main_loop(state: &mut State) {
     }
 
     // TEST: draw crosses
-    let billboard_shader = assets::get_shader(&"default".to_string(), &state.assets);  
+    let billboard_shader = assets::get_shader(&"default_tex", &state.assets);  
 
     let color = vec4::from_values(1.0, 1.0, 1.0, 1.0);
-    let billboard_uniforms = dynamic_uniform!{
-        tex: &assets::get_texture(&"x.png".to_string(), &state.assets).texture,
+    let mut billboard_uniforms = dynamic_uniform!{
         color: &color,
     };
     for i in 0..ROW_COUNT {
@@ -192,6 +198,11 @@ fn main_loop(state: &mut State) {
                 let position = apply_cube_transform(&get_block_coords(&pos, &state), &state);
 
                 if block_type != game::BlockType::Empty {
+                    billboard_uniforms.add("tex", &assets::get_texture(get_symbol_texture(block_type), &state.assets).texture);
+
+                    let mut color = if block_type == game::BlockType::Cross { CROSS_COLOR } else { CIRCLE_COLOR };
+                    color[3] = 0.3;
+                    draw_cube_on_block_simple(&pos, &color, &mut frame, state);
                     draw::draw_world_billboard(position, [0.05, 0.05], 0.0, billboard_shader, Some(billboard_uniforms.clone()), &mut frame, state)
                 }
             }
@@ -295,7 +306,7 @@ fn main_loop(state: &mut State) {
         let billboard_pos = apply_cube_transform(&get_block_coords(&pos_vec, &state), &state);
         let color = vec4::from_values(1.0, 1.0, 1.0, (state.time.time * 10.0).sin() * 0.25 + 0.75);
         let billboard_uniforms = dynamic_uniform!{
-            tex: &assets::get_texture(&"x.png".to_string(), &state.assets).texture,
+            tex: &assets::get_texture(get_symbol_texture_of_turn(state), &state.assets).texture,
             color: &color,
         };
         draw::draw_world_billboard(billboard_pos, [0.05, 0.05], 0.0, billboard_shader, Some(billboard_uniforms.clone()), &mut frame, state);
@@ -311,6 +322,9 @@ fn main_loop(state: &mut State) {
         a[pos.wheel_direction] -= depth_delta;
         b[pos.wheel_direction] += depth_delta;
 
+        let helper_color = [1.0, 0.0, 0.0, 1.0];
+        let helper_width = 0.005;
+
         let mut a_points: [Vec3; 4] = [[0.0; 3]; 4];
         let mut b_points: [Vec3; 4] = [[0.0; 3]; 4];
         let deltas = [[1, 1], [-1, 1], [-1, -1], [1, -1]];
@@ -325,20 +339,20 @@ fn main_loop(state: &mut State) {
             a_points[i] = apply_cube_transform(&line_a, &state);
             b_points[i] = apply_cube_transform(&line_b, &state);
 
-            draw::draw_line_world(&a_points[i], &b_points[i], &[1.0, 0.0, 0.0, 1.0], 0.01, false, &mut frame, state);
+            draw::draw_line_world(&a_points[i], &b_points[i], &helper_color, helper_width, false, &mut frame, state);
 
             if i > 0 {
-                draw::draw_line_world(&a_points[i], &a_points[i-1], &[1.0, 0.0, 0.0, 1.0], 0.01, false, &mut frame, state);
-                draw::draw_line_world(&b_points[i], &b_points[i-1], &[1.0, 0.0, 0.0, 1.0], 0.01, false, &mut frame, state);
+                draw::draw_line_world(&a_points[i], &a_points[i-1], &helper_color, helper_width, false, &mut frame, state);
+                draw::draw_line_world(&b_points[i], &b_points[i-1], &helper_color, helper_width, false, &mut frame, state);
             }
         }
 
-        draw::draw_line_world(&a_points[0], &a_points[3], &[1.0, 0.0, 0.0, 1.0], 0.01, false, &mut frame, state);
-        draw::draw_line_world(&b_points[0], &b_points[3], &[1.0, 0.0, 0.0, 1.0], 0.01, false, &mut frame, state);
+        draw::draw_line_world(&a_points[0], &a_points[3], &helper_color, helper_width, false, &mut frame, state);
+        draw::draw_line_world(&b_points[0], &b_points[3], &helper_color, helper_width, false, &mut frame, state);
 
         // Submit
         if state.input.rmb.up {
-            game::set_block(&pos_vec, game::BlockType::Cross, state);
+            game::submit_click(&pos_vec, state);
         }
         
         state.last_face_id = pos.face_id;
@@ -483,4 +497,47 @@ fn get_mouse_pos_on_cube(state: &State) -> Option<CubePosition> {
     }
 
     return None;
+}
+
+fn get_symbol_texture(t: game::BlockType) -> &'static str {
+    if t == game::BlockType::Cross {
+        return "x.png";
+    }
+    else {
+        return "o.png";
+    }
+}
+
+fn get_symbol_texture_of_turn(state: &State) -> &'static str {
+    if state.is_cross_turn {
+        return "x.png";
+    }
+    else {
+        return "o.png";
+    }
+}
+
+fn draw_cube_on_block_simple(pos: &Vec3i, color: &Vec4, frame: &mut glium::Frame, state: &State) {
+    let uniforms = dynamic_uniform! {
+        color: color,
+    };
+
+    let shader = assets::get_shader("default_color", &state.assets);
+    draw_cube_on_block(pos, shader, Some(uniforms), frame, state);
+}
+
+fn draw_cube_on_block(pos: &Vec3i, shader: &shader::Shader, uniforms: Option<glium::uniforms::DynamicUniforms<'_, '_>>, frame: &mut glium::Frame, state: &State) {
+    let mut translate_mat = mat4::create();
+    mat4::from_translation(&mut translate_mat, &get_block_coords(pos, state));
+
+    
+    let mut result_transform = mat4::create();
+    mat4::mul(&mut result_transform, &state.cube_transform_matrix, &translate_mat);
+    
+    let scale_amount = state.cube_size / ROW_COUNT as f32;
+
+    let cloned = result_transform.clone();
+    mat4::scale(&mut result_transform, &cloned, &[scale_amount, scale_amount, scale_amount]);
+
+    draw::draw_cube(&result_transform, shader, uniforms, frame, state)
 }

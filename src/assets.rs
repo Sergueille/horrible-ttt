@@ -13,7 +13,7 @@ pub fn crate_base() -> AssetBase {
     return HashMap::new();
 }
 
-fn get<'a>(name: &String, assets: &'a AssetBase) -> &'a Asset {
+fn get<'a>(name: &str, assets: &'a AssetBase) -> &'a Asset {
     let res = assets.get(name);
 
     return match res {
@@ -25,7 +25,7 @@ fn get<'a>(name: &String, assets: &'a AssetBase) -> &'a Asset {
     }
 }
 
-pub fn get_texture<'a>(name: &String, assets: &'a AssetBase) -> &'a crate::texture::Texture {
+pub fn get_texture<'a>(name: &str, assets: &'a AssetBase) -> &'a crate::texture::Texture {
     let res = get(name, assets);
 
     return match res {
@@ -37,7 +37,7 @@ pub fn get_texture<'a>(name: &String, assets: &'a AssetBase) -> &'a crate::textu
     }
 }
 
-pub fn get_shader<'a>(name: &String, assets: &'a AssetBase) -> &'a crate::shader::Shader {
+pub fn get_shader<'a>(name: &str, assets: &'a AssetBase) -> &'a crate::shader::Shader {
     let res = get(name, assets);
 
     return match res {

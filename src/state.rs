@@ -43,5 +43,7 @@ pub struct State {
 
     pub last_face_id: i32,
     pub depth: i32,
+
+    pub is_cross_turn: bool,
 }
 
