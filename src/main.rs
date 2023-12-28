@@ -15,6 +15,7 @@ extern crate gl_matrix;
 
 use std::env;
 
+use game::{GameInfo, GameState, BlockType};
 use gl_matrix::quat;
 use gl_matrix::vec2;
 use gl_matrix::vec3;
@@ -34,6 +35,7 @@ implement_vertex!(Vertex, pos, uv);
 
 const MAX_FPS: i32 = 100; 
 const ROW_COUNT: i32 = 6;
+const COUNT_TO_WIN: i32 = 5;
 const ROTATE_SPEED_DECREASE: f32 = 500.0;
 const CUBE_POS: [f32; 3] = [0.0, 0.0, -5.0];
 static FOV: f32 = PI / 4.0;
@@ -57,20 +59,21 @@ fn main() {
     let cube_indices = glium::index::IndexBuffer::new(&display, glium::index::PrimitiveType::TrianglesList, &util::CUBE_INDICES).unwrap();
     
     // Initial state
-    let game_state = game::GameState {
+    let game_state = GameInfo {
         cube_transform_matrix: mat4::create(),
         cube_rotation: quat::create(),
         cube_rotation_velocity: quat::create(),
         cube_size: 2.0,
 
-        blocks: [game::BlockType::Empty; (ROW_COUNT * ROW_COUNT * ROW_COUNT) as usize],
+        blocks: [game::BlockType::None; (ROW_COUNT * ROW_COUNT * ROW_COUNT) as usize],
         start_mouse_sphere_intersection: None,
         last_mouse_sphere_intersection: None,
         mouse_sphere_radius: 0.0,
         drag_start_rotation: quat::create(),
         last_face_id: -1,
         depth: 0,
-        is_cross_turn: true,
+
+        state: GameState::Turn(BlockType::Cross),
     };
 
     let mut state = state::State {
@@ -206,6 +209,7 @@ fn main_loop(state: &mut State) {
         }
     }
 
+    // Draw crosses and circles
     for i in 0..ROW_COUNT {
         for j in 0..ROW_COUNT {
             for k in 0..ROW_COUNT {
@@ -213,10 +217,10 @@ fn main_loop(state: &mut State) {
                 let block_type = game::get_block(&pos, &state);
                 let position = apply_cube_transform(&get_block_coords(&pos, &state), &state);
 
-                if block_type != game::BlockType::Empty {
+                if block_type != game::BlockType::None {
                     let mut color = if block_type == game::BlockType::Cross { CROSS_COLOR } else { CIRCLE_COLOR };
                     color[3] = 0.2;
-                    draw::draw_world_billboard(position, [0.05, 0.05], 0.0, color, 
+                    draw::draw_world_billboard(position, [0.05, 0.05], 0.0, [1.0, 1.0, 1.0, 1.0], 
                         draw::TexArg::One(&get_symbol_texture(block_type)), &"default_tex", state);
                     draw_cube_on_block(&pos, color, &"default_color", state);
                 }
@@ -287,6 +291,36 @@ fn main_loop(state: &mut State) {
         }
     }
 
+    match state.game.state {
+        GameState::GameWon(_) => {
+            // TODO
+        },
+        GameState::Turn(_) => {
+            handle_turn(pos_on_cube, state);
+        }
+    };
+
+    if !moving_cube {
+        // Decrease velocity
+        state.game.cube_rotation_velocity = util::multiply_quat(&state.game.cube_rotation_velocity, (-state.time.delta_time * ROTATE_SPEED_DECREASE).exp()) ;
+
+        // Apply velocity rotation
+        let mut new_rotation = quat::create();
+        quat::mul(&mut new_rotation, &state.game.cube_rotation_velocity, &state.game.cube_rotation);
+        state.game.cube_rotation = new_rotation;
+    }
+
+    // Make sure the cube rotation is normalized (sometimes isn't because of precision issues) 
+    let mut normalized = quat::create();
+    quat::normalize(&mut normalized, &state.game.cube_rotation);
+    state.game.cube_rotation = normalized;
+
+    draw::draw_all(&mut frame, state);
+
+    frame.finish().expect("Uuh?");
+}
+
+fn handle_turn(pos_on_cube: Option<CubePosition>, state: &mut State) {
     if pos_on_cube.is_some() {
         let pos = pos_on_cube.expect("");
 
@@ -370,25 +404,6 @@ fn main_loop(state: &mut State) {
     else {
         state.game.last_face_id = -1;
     }
-
-    if !moving_cube {
-        // Decrease velocity
-        state.game.cube_rotation_velocity = util::multiply_quat(&state.game.cube_rotation_velocity, (-state.time.delta_time * ROTATE_SPEED_DECREASE).exp()) ;
-
-        // Apply velocity rotation
-        let mut new_rotation = quat::create();
-        quat::mul(&mut new_rotation, &state.game.cube_rotation_velocity, &state.game.cube_rotation);
-        state.game.cube_rotation = new_rotation;
-    }
-
-    // Make sure the cube rotation is normalized (sometimes isn't because of precision issues) 
-    let mut normalized = quat::create();
-    quat::normalize(&mut normalized, &state.game.cube_rotation);
-    state.game.cube_rotation = normalized;
-
-    draw::draw_all(&mut frame, state);
-
-    frame.finish().expect("Uuh?");
 }
 
 fn apply_cube_transform(vec: &Vec3, state: &State) -> Vec3 {
@@ -523,12 +538,12 @@ fn get_symbol_texture(t: game::BlockType) -> &'static str {
 }
 
 fn get_symbol_texture_of_turn(state: &State) -> &'static str {
-    if state.game.is_cross_turn {
-        return "x.png";
-    }
-    else {
-        return "o.png";
-    }
+    let block_type = match state.game.state {
+        GameState::Turn(block_type) => block_type,
+        GameState::GameWon(block_type) => block_type,
+    };
+
+    return get_symbol_texture(block_type);
 }
 
 fn draw_cube_on_block<'a>(pos: &Vec3i, color: Vec4, shader: &'a str, state: &mut State<'a>) {

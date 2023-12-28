@@ -31,6 +31,6 @@ pub struct State<'a> {
     pub draw_queue: binary_heap::BinaryHeap<draw::DrawCommand<'a>>,
 
     pub input: input::Input,
-    pub game: game::GameState,
+    pub game: game::GameInfo,
 }
 
