@@ -214,3 +214,12 @@ pub fn multiply_quat(quat: &Quat, scalar: f32) -> Quat {
 pub fn is_pointing_towards_camera(center: &Vec3, normal: &Vec3) -> bool {
     return vec3::dot(&center, &normal) < 0.0;
 }
+
+pub fn identity_uniform() -> [[f32; 4]; 4] {
+    return [
+        [1.0, 0.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0, 0.0],
+        [0.0, 0.0, 1.0, 0.0],
+        [0.0, 0.0, 0.0, 1.0],
+    ]
+}

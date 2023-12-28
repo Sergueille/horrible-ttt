@@ -2,17 +2,16 @@
 use crate::*;
 use crate::game;
 use crate::time;
-use crate::shader;
 use crate::util::*;
 use gl_matrix::common::Mat4;
 use gl_matrix::common::Vec2;
+use std::collections::binary_heap;
 
 use crate::Vertex;
 
-pub struct State {
+pub struct State<'a> {
     // Engine
     pub time: time::Time,
-    pub shaders: Vec<shader::Shader>,
     pub resolution: Vec2u,
     pub quad_vertices: glium::VertexBuffer<Vertex>,
     pub quad_indices: glium::IndexBuffer<u8>,
@@ -26,24 +25,12 @@ pub struct State {
     pub mouse_delta_normalized: Vec2,
     pub mouse_ray: Vec3,
     pub last_main_time: f32,
+    
+    pub quad_params: glium::DrawParameters<'a>,
+    pub cube_params: glium::DrawParameters<'a>,
+    pub draw_queue: binary_heap::BinaryHeap<draw::DrawCommand<'a>>,
 
     pub input: input::Input,
-
-    // Game
-    pub cube_transform_matrix: Mat4,
-    pub cube_rotation: Quat,
-    pub cube_size: f32,
-    pub blocks: [game::BlockType; (ROW_COUNT * ROW_COUNT * ROW_COUNT) as usize],
-    pub cube_rotation_velocity: Quat,
-    
-    pub last_mouse_sphere_intersection: Option<Vec3>,
-    pub start_mouse_sphere_intersection: Option<Vec3>,
-    pub mouse_sphere_radius: f32,
-    pub drag_start_rotation: Quat,
-
-    pub last_face_id: i32,
-    pub depth: i32,
-
-    pub is_cross_turn: bool,
+    pub game: game::GameState,
 }
 

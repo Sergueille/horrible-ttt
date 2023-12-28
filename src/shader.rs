@@ -28,8 +28,6 @@ pub fn create_shaders<'a>(state: &'a mut state::State) {
         define_program!("cheap_line", "cheap_line_frag", "vtex"),
     ];
 
-    state.shaders = Vec::with_capacity(shader_infos.len());
-
     for info in shader_infos.into_iter() {
         let vtex_content = fs::read_to_string(info.vtex_filename).expect("Failed to read the shader source file");
         let frag_content = fs::read_to_string(info.frag_filename).expect("Failed to read the shader source file");

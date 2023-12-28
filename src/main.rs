@@ -55,26 +55,9 @@ fn main() {
     // Create cube mesh
     let cube_vertices = glium::VertexBuffer::new(&display, &util::CUBE_VERTICES).unwrap();
     let cube_indices = glium::index::IndexBuffer::new(&display, glium::index::PrimitiveType::TrianglesList, &util::CUBE_INDICES).unwrap();
-
+    
     // Initial state
-    let mut state = state::State {
-        time: time::init_time(),
-        shaders: Vec::new(),
-        resolution: vec2u(0, 0),
-        quad_vertices, 
-        quad_indices,
-        cube_vertices, 
-        cube_indices,
-        camera_projection_mat: mat4::create(),
-        assets: assets::crate_base(),
-        display,
-        mouse_coords_normalized: [0.0, 0.0],
-        mouse_coords_pixels: vec2i(0, 0),
-        mouse_delta_normalized: [0.0, 0.0],
-        mouse_ray: vec3::create(),
-        last_main_time: 0.0,
-        input: input::get_input(),
-
+    let game_state = game::GameState {
         cube_transform_matrix: mat4::create(),
         cube_rotation: quat::create(),
         cube_rotation_velocity: quat::create(),
@@ -90,9 +73,50 @@ fn main() {
         is_cross_turn: true,
     };
 
+    let mut state = state::State {
+        time: time::init_time(),
+        resolution: vec2u(0, 0),
+        quad_vertices, 
+        quad_indices,
+        cube_vertices, 
+        cube_indices,
+        camera_projection_mat: mat4::create(),
+        assets: assets::crate_base(),
+        display,
+        mouse_coords_normalized: [0.0, 0.0],
+        mouse_coords_pixels: vec2i(0, 0),
+        mouse_delta_normalized: [0.0, 0.0],
+        mouse_ray: vec3::create(),
+        last_main_time: 0.0,
+        input: input::get_input(),
+
+        quad_params: glium::DrawParameters {
+            depth: glium::Depth {
+                test: glium::DepthTest::IfLess,
+                write: true,
+                .. Default::default()
+            },
+            backface_culling: glium::draw_parameters::BackfaceCullingMode::CullClockwise,
+            blend: glium::Blend::alpha_blending(),
+            .. Default::default()
+        },
+        cube_params: glium::DrawParameters {
+            depth: glium::Depth {
+                test: glium::DepthTest::IfLess,
+                write: true,
+                .. Default::default()
+            },
+            backface_culling: glium::draw_parameters::BackfaceCullingMode::CullClockwise,
+            blend: glium::Blend::alpha_blending(),
+            .. Default::default()
+        },
+        draw_queue: std::collections::binary_heap::BinaryHeap::new(),
+        game: game_state,
+    };
+
     // Reset rotation
-    quat::identity(&mut state.cube_rotation);
-    quat::identity(&mut state.cube_rotation_velocity);
+    quat::identity(&mut state.game.cube_rotation);
+    quat::identity(&mut state.game.cube_rotation_velocity);
 
     // Compile shaders
     shader::create_shaders(&mut state);
@@ -143,12 +167,12 @@ fn main_loop(state: &mut State) {
     mat4::from_translation(&mut translate_mat, &CUBE_POS);
     
     let mut rotation_mat = mat4::create();
-    mat4::from_quat(&mut rotation_mat, &state.cube_rotation);
+    mat4::from_quat(&mut rotation_mat, &state.game.cube_rotation);
     
     let mut transform_mat: Mat4 = mat4::create();
     mat4::mul(&mut transform_mat, &translate_mat, &rotation_mat);
     
-    state.cube_transform_matrix = transform_mat;
+    state.game.cube_transform_matrix = transform_mat;
 
     // Get intersection with cube
     let pos_on_cube = get_mouse_pos_on_cube(&state);
@@ -156,8 +180,8 @@ fn main_loop(state: &mut State) {
     // Draw lines
     for i in [0, 6, 1, 2, 3, 4, 5] {
         for j in [0, 6, 1, 2, 3, 4, 5] {
-            let i_norm = state.cube_size / (ROW_COUNT as f32) * i as f32 - 1.0;
-            let j_norm = state.cube_size / (ROW_COUNT as f32) * j as f32 - 1.0;
+            let i_norm = state.game.cube_size / (ROW_COUNT as f32) * i as f32 - 1.0;
+            let j_norm = state.game.cube_size / (ROW_COUNT as f32) * j as f32 - 1.0;
 
             let a = apply_cube_transform(&[i_norm, -1.0, j_norm], &state);
             let b = apply_cube_transform(&[i_norm,  1.0, j_norm], &state);
@@ -173,22 +197,15 @@ fn main_loop(state: &mut State) {
 
             if border {
                 let width = if corner { 0.01 } else { 0.002 };
-                let color = if corner { [1.0, 1.0, 0.5, 1.0] } else { [1.0, 1.0, 1.0, 0.5] };
+                let color = if corner { [1.0, 1.0, 0.5, 1.0] } else { [1.0, 1.0, 1.0, 0.2] };
     
-                draw::draw_line_world(&a, &b, &color, width, !corner, &mut frame, state);
-                draw::draw_line_world(&c, &d, &color, width, !corner, &mut frame, state);
-                draw::draw_line_world(&e, &f, &color, width, !corner, &mut frame, state);
+                draw::draw_line_world(&a, &b, color, width, !corner, state);
+                draw::draw_line_world(&c, &d, color, width, !corner, state);
+                draw::draw_line_world(&e, &f, color, width, !corner, state);
             } 
         }
     }
 
-    // TEST: draw crosses
-    let billboard_shader = assets::get_shader(&"default_tex", &state.assets);  
-
-    let color = vec4::from_values(1.0, 1.0, 1.0, 1.0);
-    let mut billboard_uniforms = dynamic_uniform!{
-        color: &color,
-    };
     for i in 0..ROW_COUNT {
         for j in 0..ROW_COUNT {
             for k in 0..ROW_COUNT {
@@ -197,12 +214,11 @@ fn main_loop(state: &mut State) {
                 let position = apply_cube_transform(&get_block_coords(&pos, &state), &state);
 
                 if block_type != game::BlockType::Empty {
-                    billboard_uniforms.add("tex", &assets::get_texture(get_symbol_texture(block_type), &state.assets).texture);
-
                     let mut color = if block_type == game::BlockType::Cross { CROSS_COLOR } else { CIRCLE_COLOR };
-                    color[3] = 0.3;
-                    draw::draw_world_billboard(position, [0.05, 0.05], 0.0, billboard_shader, Some(billboard_uniforms.clone()), &mut frame, state);
-                    draw_cube_on_block_simple(&pos, &color, &mut frame, state);
+                    color[3] = 0.2;
+                    draw::draw_world_billboard(position, [0.05, 0.05], 0.0, color, 
+                        draw::TexArg::One(&get_symbol_texture(block_type)), &"default_tex", state);
+                    draw_cube_on_block(&pos, color, &"default_color", state);
                 }
             }
         }
@@ -212,13 +228,13 @@ fn main_loop(state: &mut State) {
     let mut moving_cube = false;
 
     if state.input.lmb.hold || state.input.mmb.hold {
-        let intersection = util::intersect_line_sphere(&CUBE_POS, state.mouse_sphere_radius, &[0.0, 0.0, 0.0], &state.mouse_ray);
-        moving_cube = state.start_mouse_sphere_intersection != None && intersection != None;
+        let intersection = util::intersect_line_sphere(&CUBE_POS, state.game.mouse_sphere_radius, &[0.0, 0.0, 0.0], &state.mouse_ray);
+        moving_cube = state.game.start_mouse_sphere_intersection != None && intersection != None;
 
         if !state.input.lmb.down && !state.input.mmb.down { // Already down last frame
             if moving_cube {
                 // Get delta angle
-                let from = state.start_mouse_sphere_intersection.expect("");
+                let from = state.game.start_mouse_sphere_intersection.expect("");
                 let mut to = intersection.expect("");
 
                 let mut to_tmp = vec3::create();
@@ -228,20 +244,20 @@ fn main_loop(state: &mut State) {
                 let mut delta = quat::create();
                 quat::rotation_to(&mut delta, &from, &to); // Rotation from old vector to new vector
 
-                quat::mul(&mut state.cube_rotation, &delta, &state.drag_start_rotation);
+                quat::mul(&mut state.game.cube_rotation, &delta, &state.game.drag_start_rotation);
 
-                state.cube_rotation_velocity = delta;
+                state.game.cube_rotation_velocity = delta;
 
-                match state.last_mouse_sphere_intersection {
+                match state.game.last_mouse_sphere_intersection {
                     Some(vec) => {
-                        quat::rotation_to(&mut state.cube_rotation_velocity, &vec, &to);
+                        quat::rotation_to(&mut state.game.cube_rotation_velocity, &vec, &to);
                     },
                     None => {
-                        quat::identity(&mut state.cube_rotation_velocity);
+                        quat::identity(&mut state.game.cube_rotation_velocity);
                     }
                 }
 
-                state.last_mouse_sphere_intersection = Some(to);
+                state.game.last_mouse_sphere_intersection = Some(to);
             }
         }
         else {
@@ -253,21 +269,21 @@ fn main_loop(state: &mut State) {
 
                     vec3::sub(&mut tmp1, &pos.world_pos, &CUBE_POS);
                     vec3::normalize(&mut tmp2, &tmp1);
-                    state.start_mouse_sphere_intersection = Some(tmp2);
-                    state.last_mouse_sphere_intersection = Some(tmp2);
+                    state.game.start_mouse_sphere_intersection = Some(tmp2);
+                    state.game.last_mouse_sphere_intersection = Some(tmp2);
 
                     vec3::sub(&mut tmp1, &pos.world_pos, &CUBE_POS);
-                    state.mouse_sphere_radius = vec3::len(&tmp1);
+                    state.game.mouse_sphere_radius = vec3::len(&tmp1);
 
                 }
                 None => {
-                    state.start_mouse_sphere_intersection = None;
-                    state.last_mouse_sphere_intersection = None;
-                    state.mouse_sphere_radius = 0.0;
+                    state.game.start_mouse_sphere_intersection = None;
+                    state.game.last_mouse_sphere_intersection = None;
+                    state.game.mouse_sphere_radius = 0.0;
                 }
             }
 
-            state.drag_start_rotation = state.cube_rotation.clone();
+            state.game.drag_start_rotation = state.game.cube_rotation.clone();
         }
     }
 
@@ -275,45 +291,42 @@ fn main_loop(state: &mut State) {
         let pos = pos_on_cube.expect("");
 
         // Handle wheel
-        if pos.face_id != state.last_face_id {
-            state.depth = 0;
+        if pos.face_id != state.game.last_face_id {
+            state.game.depth = 0;
         }
 
         if state.input.wheel_down {
-            if state.depth > 0 {
-                state.depth -= 1;
+            if state.game.depth > 0 {
+                state.game.depth -= 1;
             }
         }
         else if state.input.wheel_up {
-            if state.depth < ROW_COUNT - 1 {
-                state.depth += 1;
+            if state.game.depth < ROW_COUNT - 1 {
+                state.game.depth += 1;
             }
         }
 
         let mut block_pos = pos.coords;
         if pos.is_wheel_inverted {
-            block_pos[pos.wheel_direction] = ROW_COUNT - 1 - state.depth;
+            block_pos[pos.wheel_direction] = ROW_COUNT - 1 - state.game.depth;
         }
         else {
-            block_pos[pos.wheel_direction] = state.depth;
+            block_pos[pos.wheel_direction] = state.game.depth;
         }
 
         let pos_vec = util::vec3i_arr(block_pos);
 
         let billboard_pos = apply_cube_transform(&get_block_coords(&pos_vec, &state), &state);
         let color = vec4::from_values(1.0, 1.0, 1.0, (state.time.time * 10.0).sin() * 0.25 + 0.75);
-        let billboard_uniforms = dynamic_uniform!{
-            tex: &assets::get_texture(get_symbol_texture_of_turn(state), &state.assets).texture,
-            color: &color,
-        };
-        draw::draw_world_billboard(billboard_pos, [0.05, 0.05], 0.0, billboard_shader, Some(billboard_uniforms.clone()), &mut frame, state);
+        draw::draw_world_billboard(billboard_pos, [0.05, 0.05], 0.0, color,
+            draw::TexArg::One(&get_symbol_texture_of_turn(state)), "default_tex", state);
 
         block_pos[pos.wheel_direction] = 0;
         let mut a = get_block_coords(&util::vec3i_arr(block_pos), &state);
         block_pos[pos.wheel_direction] = ROW_COUNT - 1;
         let mut b = get_block_coords(&util::vec3i_arr(block_pos), &state);
 
-        let half_block_size = state.cube_size / ROW_COUNT as f32 / 2.0;
+        let half_block_size = state.game.cube_size / ROW_COUNT as f32 / 2.0;
 
         let depth_delta = if pos.wheel_direction == 2 { -half_block_size } else { half_block_size };
         a[pos.wheel_direction] -= depth_delta;
@@ -336,49 +349,51 @@ fn main_loop(state: &mut State) {
             a_points[i] = apply_cube_transform(&line_a, &state);
             b_points[i] = apply_cube_transform(&line_b, &state);
 
-            draw::draw_line_world(&a_points[i], &b_points[i], &helper_color, helper_width, false, &mut frame, state);
+            draw::draw_line_world(&a_points[i], &b_points[i], helper_color, helper_width, false, state);
 
             if i > 0 {
-                draw::draw_line_world(&a_points[i], &a_points[i-1], &helper_color, helper_width, false, &mut frame, state);
-                draw::draw_line_world(&b_points[i], &b_points[i-1], &helper_color, helper_width, false, &mut frame, state);
+                draw::draw_line_world(&a_points[i], &a_points[i-1], helper_color, helper_width, false, state);
+                draw::draw_line_world(&b_points[i], &b_points[i-1], helper_color, helper_width, false, state);
             }
         }
 
-        draw::draw_line_world(&a_points[0], &a_points[3], &helper_color, helper_width, false, &mut frame, state);
-        draw::draw_line_world(&b_points[0], &b_points[3], &helper_color, helper_width, false, &mut frame, state);
+        draw::draw_line_world(&a_points[0], &a_points[3], helper_color, helper_width, false, state);
+        draw::draw_line_world(&b_points[0], &b_points[3], helper_color, helper_width, false, state);
 
         // Submit
         if state.input.rmb.up {
             game::submit_click(&pos_vec, state);
         }
         
-        state.last_face_id = pos.face_id;
+        state.game.last_face_id = pos.face_id;
     }
     else {
-        state.last_face_id = -1;
+        state.game.last_face_id = -1;
     }
 
     if !moving_cube {
         // Decrease velocity
-        state.cube_rotation_velocity = util::multiply_quat(&state.cube_rotation_velocity, (-state.time.delta_time * ROTATE_SPEED_DECREASE).exp()) ;
+        state.game.cube_rotation_velocity = util::multiply_quat(&state.game.cube_rotation_velocity, (-state.time.delta_time * ROTATE_SPEED_DECREASE).exp()) ;
 
         // Apply velocity rotation
         let mut new_rotation = quat::create();
-        quat::mul(&mut new_rotation, &state.cube_rotation_velocity, &state.cube_rotation);
-        state.cube_rotation = new_rotation;
+        quat::mul(&mut new_rotation, &state.game.cube_rotation_velocity, &state.game.cube_rotation);
+        state.game.cube_rotation = new_rotation;
     }
 
     // Make sure the cube rotation is normalized (sometimes isn't because of precision issues) 
     let mut normalized = quat::create();
-    quat::normalize(&mut normalized, &state.cube_rotation);
-    state.cube_rotation = normalized;
+    quat::normalize(&mut normalized, &state.game.cube_rotation);
+    state.game.cube_rotation = normalized;
+
+    draw::draw_all(&mut frame, state);
 
     frame.finish().expect("Uuh?");
 }
 
 fn apply_cube_transform(vec: &Vec3, state: &State) -> Vec3 {
     let mut res = vec4::create();
-    vec4::transform_mat4(&mut res, &[vec[0], vec[1], vec[2], 1.0], &state.cube_transform_matrix);
+    vec4::transform_mat4(&mut res, &[vec[0], vec[1], vec[2], 1.0], &state.game.cube_transform_matrix);
     res = util::divide_by_w(res);
 
     return [res[0], res[1], res[2]];
@@ -386,12 +401,12 @@ fn apply_cube_transform(vec: &Vec3, state: &State) -> Vec3 {
 
 fn apply_cube_rotation(vec: &Vec3, state: &State) -> Vec3 {
     let mut res = vec3::create();
-    vec3::transform_quat(&mut res, &vec, &state.cube_rotation);
+    vec3::transform_quat(&mut res, &vec, &state.game.cube_rotation);
     return res;
 }
 
 fn get_block_coords(pos: &Vec3i, state: &State) -> Vec3 {
-    let block_size = state.cube_size / ROW_COUNT as f32;
+    let block_size = state.game.cube_size / ROW_COUNT as f32;
     
     return [
         -(block_size * (ROW_COUNT - 1) as f32 / 2.0) + pos.x as f32 * block_size,
@@ -471,13 +486,13 @@ fn get_mouse_pos_on_cube(state: &State) -> Option<CubePosition> {
         let intersection = util::intersect_line_plane(&transformed_origin, &transformed_normal, &[0.0, 0.0, 0.0], &state.mouse_ray);
         let plane_coords = util::get_plane_coords(&transformed_origin, &transformed_t1, &transformed_t2, &intersection);
 
-        if plane_coords[0] < 0.0 || plane_coords[0] > state.cube_size || plane_coords[1] < 0.0 || plane_coords[1] > state.cube_size {
+        if plane_coords[0] < 0.0 || plane_coords[0] > state.game.cube_size || plane_coords[1] < 0.0 || plane_coords[1] > state.game.cube_size {
             continue;
         }
 
         let block_coords = [
-            (plane_coords[0] / state.cube_size * 6.0).floor() as i32,
-            (plane_coords[1] / state.cube_size * 6.0).floor() as i32,
+            (plane_coords[0] / state.game.cube_size * 6.0).floor() as i32,
+            (plane_coords[1] / state.game.cube_size * 6.0).floor() as i32,
         ];
 
         let mut res = [0, 0, 0];
@@ -508,7 +523,7 @@ fn get_symbol_texture(t: game::BlockType) -> &'static str {
 }
 
 fn get_symbol_texture_of_turn(state: &State) -> &'static str {
-    if state.is_cross_turn {
+    if state.game.is_cross_turn {
         return "x.png";
     }
     else {
@@ -516,27 +531,19 @@ fn get_symbol_texture_of_turn(state: &State) -> &'static str {
     }
 }
 
-fn draw_cube_on_block_simple(pos: &Vec3i, color: &Vec4, frame: &mut glium::Frame, state: &State) {
-    let uniforms = dynamic_uniform! {
-        color: color,
-    };
-
-    let shader = assets::get_shader("default_color", &state.assets);
-    draw_cube_on_block(pos, shader, Some(uniforms), frame, state);
-}
-
-fn draw_cube_on_block(pos: &Vec3i, shader: &shader::Shader, uniforms: Option<glium::uniforms::DynamicUniforms<'_, '_>>, frame: &mut glium::Frame, state: &State) {
+fn draw_cube_on_block<'a>(pos: &Vec3i, color: Vec4, shader: &'a str, state: &mut State<'a>) {
     let mut translate_mat = mat4::create();
     mat4::from_translation(&mut translate_mat, &get_block_coords(pos, state));
 
     
     let mut result_transform = mat4::create();
-    mat4::mul(&mut result_transform, &state.cube_transform_matrix, &translate_mat);
+    mat4::mul(&mut result_transform, &state.game.cube_transform_matrix, &translate_mat);
     
-    let scale_amount = state.cube_size / ROW_COUNT as f32;
+    let scale_amount = state.game.cube_size / ROW_COUNT as f32;
 
     let cloned = result_transform.clone();
     mat4::scale(&mut result_transform, &cloned, &[scale_amount, scale_amount, scale_amount]);
 
-    draw::draw_cube(&result_transform, shader, uniforms, frame, state)
+    draw::draw_cube(result_transform, color, shader, state)
 }
+
