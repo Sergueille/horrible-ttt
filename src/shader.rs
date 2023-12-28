@@ -4,7 +4,7 @@ use crate::assets;
 
 macro_rules! define_program {
     ($name_s:expr, $frag_s:expr, $vtex_s:expr) => {
-        ShaderInfo { name: $name_s, frag_filename: concat!("./shaders/", $frag_s, ".glsl"), vtex_filename: concat!("./shaders/", $vtex_s, ".glsl") }
+        ShaderInfo { name: $name_s, frag_filename: concat!("./assets/shaders/", $frag_s, ".glsl"), vtex_filename: concat!("./assets/shaders/", $vtex_s, ".glsl") }
     };
 }
 
