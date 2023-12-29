@@ -263,9 +263,11 @@ fn main_loop(state: &mut State) {
 
                 state.game.last_mouse_sphere_intersection = Some(to);
             }
+            else {
+                state.game.cube_rotation_velocity = util::multiply_quat(&state.game.cube_rotation_velocity, 0.7); // Prevent the cube from spinning too much 
+            }
         }
         else {
-
             match pos_on_cube {
                 Some(ref pos) => {
                     let mut tmp1 = vec3::create();
