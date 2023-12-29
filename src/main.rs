@@ -357,44 +357,9 @@ fn handle_turn(pos_on_cube: Option<CubePosition>, state: &mut State) {
         draw::draw_world_billboard(billboard_pos, [0.05, 0.05], 0.0, color,
             draw::TexArg::One(&get_symbol_texture_of_turn(state)), "default_tex", state);
 
-        block_pos[pos.wheel_direction] = 0;
-        let mut a = get_block_coords(&util::vec3i_arr(block_pos), &state);
-        block_pos[pos.wheel_direction] = ROW_COUNT - 1;
-        let mut b = get_block_coords(&util::vec3i_arr(block_pos), &state);
-
-        let half_block_size = state.game.cube_size / ROW_COUNT as f32 / 2.0;
-
-        let depth_delta = if pos.wheel_direction == 2 { -half_block_size } else { half_block_size };
-        a[pos.wheel_direction] -= depth_delta;
-        b[pos.wheel_direction] += depth_delta;
-
-        let helper_color = [1.0, 0.0, 0.0, 1.0];
-        let helper_width = 0.005;
-
-        let mut a_points: [Vec3; 4] = [[0.0; 3]; 4];
-        let mut b_points: [Vec3; 4] = [[0.0; 3]; 4];
-        let deltas = [[1, 1], [-1, 1], [-1, -1], [1, -1]];
-        for i in 0..4 {
-            let mut line_a = a.clone();
-            let mut line_b = b.clone();
-            line_a[pos.tangent1] += deltas[i][0] as f32 * half_block_size;
-            line_a[pos.tangent2] += deltas[i][1] as f32 * half_block_size;
-            line_b[pos.tangent1] += deltas[i][0] as f32 * half_block_size;
-            line_b[pos.tangent2] += deltas[i][1] as f32 * half_block_size;
-
-            a_points[i] = apply_cube_transform(&line_a, &state);
-            b_points[i] = apply_cube_transform(&line_b, &state);
-
-            draw::draw_line_world(&a_points[i], &b_points[i], helper_color, helper_width, false, state);
-
-            if i > 0 {
-                draw::draw_line_world(&a_points[i], &a_points[i-1], helper_color, helper_width, false, state);
-                draw::draw_line_world(&b_points[i], &b_points[i-1], helper_color, helper_width, false, state);
-            }
-        }
-
-        draw::draw_line_world(&a_points[0], &a_points[3], helper_color, helper_width, false, state);
-        draw::draw_line_world(&b_points[0], &b_points[3], helper_color, helper_width, false, state);
+        draw_column_outline(&block_pos, 0, state);
+        draw_column_outline(&block_pos, 1, state);
+        draw_column_outline(&block_pos, 2, state);
 
         // Submit
         if state.input.rmb.up {
@@ -618,3 +583,57 @@ pub fn draw_line_of_winner(state: &mut State) {
     }
 }
 
+pub fn draw_column_outline(_pos: &[i32; 3], axis: usize, state: &mut State) {
+    let mut pos = _pos.clone();
+
+    let tangent1;
+    let tangent2;
+    match axis {
+        0 => { tangent1 = 1; tangent2 = 2 },
+        1 => { tangent1 = 2; tangent2 = 0 },
+        2 => { tangent1 = 0; tangent2 = 1 },
+        _ => panic!("Wrong axis!"),
+    }
+    
+    pos[axis] = 0;
+    let mut a = get_block_coords(&util::vec3i_arr(pos), &state);
+    pos[axis] = ROW_COUNT - 1;
+    let mut b = get_block_coords(&util::vec3i_arr(pos), &state);
+
+    let mut half_block_size = state.game.cube_size / ROW_COUNT as f32 / 2.0;
+    
+    if axis == 2 {
+        half_block_size *= -1.0;
+    }
+
+    a[axis] -= half_block_size;
+    b[axis] += half_block_size;
+
+    let line_color = [1.0, 1.0, 0.5, 0.4];
+    let line_width = 0.003;
+
+    let mut a_points: [Vec3; 4] = [[0.0; 3]; 4];
+    let mut b_points: [Vec3; 4] = [[0.0; 3]; 4];
+    let deltas = [[1, 1], [-1, 1], [-1, -1], [1, -1]];
+    for i in 0..4 {
+        let mut line_a = a.clone();
+        let mut line_b = b.clone();
+        line_a[tangent1] += deltas[i][0] as f32 * half_block_size;
+        line_a[tangent2] += deltas[i][1] as f32 * half_block_size;
+        line_b[tangent1] += deltas[i][0] as f32 * half_block_size;
+        line_b[tangent2] += deltas[i][1] as f32 * half_block_size;
+
+        a_points[i] = apply_cube_transform(&line_a, &state);
+        b_points[i] = apply_cube_transform(&line_b, &state);
+
+        draw::draw_line_world(&a_points[i], &b_points[i], line_color, line_width, false, state);
+
+        if i > 0 {
+            draw::draw_line_world(&a_points[i], &a_points[i-1], line_color, line_width, false, state);
+            draw::draw_line_world(&b_points[i], &b_points[i-1], line_color, line_width, false, state);
+        }
+    }
+
+    draw::draw_line_world(&a_points[0], &a_points[3], line_color, line_width, false, state);
+    draw::draw_line_world(&b_points[0], &b_points[3], line_color, line_width, false, state);
+}
