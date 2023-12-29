@@ -6,17 +6,20 @@ use crate::gl_matrix::common::*;
 use crate::Vertex;
 use crate::state::State;
 
+#[derive(Clone)]
 pub struct Vec2i {
     pub x: i32,
     pub y: i32,
 } 
 
+#[derive(Clone, PartialEq)]
 pub struct Vec3i {
     pub x: i32,
     pub y: i32,
     pub z: i32,
 } 
 
+#[derive(Clone)]
 pub struct Vec2u {
     pub x: u32,
     pub y: u32,
@@ -36,6 +39,10 @@ pub fn vec3i(x: i32, y: i32, z: i32) -> Vec3i {
 
 pub fn vec3i_arr(coords: [i32; 3]) -> Vec3i {
     return Vec3i { x: coords[0], y: coords[1], z: coords[2] };
+}
+
+pub fn vec3i_to_arr(vec: &Vec3i) -> [i32; 3] {
+    return [vec.x, vec.y, vec.z];
 }
 
 pub fn mat_to_uniform(mat: &Mat4) -> [[f32; 4]; 4] {

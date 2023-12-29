@@ -26,8 +26,9 @@ pub enum BlockType {
     Cross, Circle, None
 }
 
+#[derive(Clone)]
 pub enum GameState {
-    Turn(BlockType), GameWon(BlockType),
+    Turn(BlockType), GameWon(VictoryInfo),
 }
 
 pub fn pos_to_id(pos: &Vec3i) -> i32 {
@@ -55,9 +56,9 @@ pub fn submit_click(pos: &Vec3i, state: &mut State) {
     if current_block == BlockType::None {
         set_block(pos, block_type, state);
 
-        let victory = check_for_victory(state);
-        match victory {
-            BlockType::None => {
+        let victory_info = check_for_victory(state);
+        match victory_info {
+            None => {
                 if block_type == BlockType::Cross {
                     state.game.state = GameState::Turn(BlockType::Circle);
                 }
@@ -65,7 +66,9 @@ pub fn submit_click(pos: &Vec3i, state: &mut State) {
                     state.game.state = GameState::Turn(BlockType::Cross);
                 }
             },
-            someone => state.game.state = GameState::GameWon(someone),
+            Some(info) => {
+                state.game.state = GameState::GameWon(info);
+            }
         };
     }
     else {
@@ -73,7 +76,14 @@ pub fn submit_click(pos: &Vec3i, state: &mut State) {
     }
 }
 
-pub fn check_for_victory(state: &State) -> BlockType {
+#[derive(Clone)]
+pub struct VictoryInfo {
+    pub winner: BlockType,
+    pub position: Vec3i,
+    pub direction: Vec3i,
+}
+
+pub fn check_for_victory(state: &State) -> Option<VictoryInfo> {
     let deltas = [
         [1, 0, 0],
         [1, 1, 0],
@@ -109,12 +119,16 @@ pub fn check_for_victory(state: &State) -> BlockType {
                     }
 
                     if okay {
-                        return block_type;
+                        return Some(VictoryInfo {
+                            winner: block_type,
+                            position: util::vec3i(x, y, z),
+                            direction: util::vec3i_arr(deltas[j]),
+                        });
                     }
                 }
             }
         }
     }
 
-    return BlockType::None;
+    return None;
 }

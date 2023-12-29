@@ -33,7 +33,7 @@ impl<'a> Ord for DrawCommand<'a> {
 
 impl<'a> PartialOrd for DrawCommand<'a> {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        if self.z_pos < other.z_pos {
+        if self.z_pos > other.z_pos {
             return Some(std::cmp::Ordering::Greater);
         }
         else {
@@ -180,7 +180,7 @@ pub fn draw_cube<'a>(transform: Mat4, color: Vec4, shader: &'a str, state: &mut 
     }
 
     state.draw_queue.push(DrawCommand {
-        z_pos: center[2] + 0.2, // TODO: add shift depending on the size of the cube
+        z_pos: center[2] - 5.0, // TODO: add shift depending on the size of the cube
         shader,
         transform: transform,
         apply_projection: true,

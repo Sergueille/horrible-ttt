@@ -293,7 +293,7 @@ fn main_loop(state: &mut State) {
 
     match state.game.state {
         GameState::GameWon(_) => {
-            // TODO
+            draw_line_of_winner(state);
         },
         GameState::Turn(_) => {
             handle_turn(pos_on_cube, state);
@@ -540,7 +540,7 @@ fn get_symbol_texture(t: game::BlockType) -> &'static str {
 fn get_symbol_texture_of_turn(state: &State) -> &'static str {
     let block_type = match state.game.state {
         GameState::Turn(block_type) => block_type,
-        GameState::GameWon(block_type) => block_type,
+        GameState::GameWon(ref info) => info.winner,
     };
 
     return get_symbol_texture(block_type);
@@ -560,5 +560,59 @@ fn draw_cube_on_block<'a>(pos: &Vec3i, color: Vec4, shader: &'a str, state: &mut
     mat4::scale(&mut result_transform, &cloned, &[scale_amount, scale_amount, scale_amount]);
 
     draw::draw_cube(result_transform, color, shader, state)
+}
+
+pub fn draw_line_of_winner(state: &mut State) {
+    match state.game.state.clone() {
+        game::GameState::GameWon(info) => {
+            let mut color = if info.winner == BlockType::Cross { CROSS_COLOR } else { CIRCLE_COLOR };
+            color[3] = 0.7;
+            
+            let mut first_point = info.position.clone();
+
+            first_point.x = (first_point.x + ROW_COUNT) % ROW_COUNT;
+            first_point.y = (first_point.y + ROW_COUNT) % ROW_COUNT;
+            first_point.z = (first_point.z + ROW_COUNT) % ROW_COUNT;
+
+            let mut current = first_point.clone();
+            let mut total_length = ROW_COUNT - 1;
+            let mut i = 0;
+            let mut should_end = false;
+            while !should_end {
+                if i < total_length - 1 {
+                    current.x += info.direction.x;
+                    current.y += info.direction.y;
+                    current.z += info.direction.z;
+                }
+                else {
+                    should_end = true;
+                }
+
+                if current.x < 0 || current.x >= ROW_COUNT 
+                || current.y < 0 || current.y >= ROW_COUNT 
+                || current.z < 0 || current.z >= ROW_COUNT 
+                || i == total_length - 1 { // Fell outside of the cube
+
+                    draw::draw_line_world(
+                        &apply_cube_transform(&get_block_coords(&first_point, state), state), 
+                        &apply_cube_transform(&get_block_coords(&current, state), state), 
+                        color, 0.03, false, state);
+
+                    current.x = (current.x + ROW_COUNT) % ROW_COUNT;
+                    current.y = (current.y + ROW_COUNT) % ROW_COUNT;
+                    current.z = (current.z + ROW_COUNT) % ROW_COUNT;
+
+                    current.x -= info.direction.x;
+                    current.y -= info.direction.y;
+                    current.z -= info.direction.z;
+
+                    first_point = current.clone();
+                    total_length += 1
+                }
+                i += 1;
+            }
+        },
+        _ => panic!("Uuh?"),
+    }
 }
 
