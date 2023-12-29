@@ -7,6 +7,7 @@ fn main() {
     fs::create_dir_all("./build").expect("Failed to create build dir");
     copy_dir("./assets", "./build/assets").expect("Failed to copy assets dir");
     fs::copy("./target/release/first-test.exe", "./build/first-test.exe").expect("Failed to copy exe");
+    fs::copy("./build_readme.txt", "./build/README.txt").expect("Failed to copy readme");
 
     let origin = PathBuf::from("./build");
     let dest = PathBuf::from("./");
