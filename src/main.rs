@@ -1,4 +1,6 @@
 
+mod bindings;
+
 mod state;
 mod time;
 mod shader;
@@ -8,6 +10,7 @@ mod assets;
 mod draw;
 mod game;
 mod input;
+mod text;
 
 #[macro_use]
 extern crate glium;
@@ -27,7 +30,7 @@ use gl_matrix::vec4;
 use util::*;
 
 #[derive(Copy, Clone)]
-struct Vertex {
+pub struct Vertex {
     pos: [f32; 3],
     uv: [f32; 2],
 }
@@ -46,6 +49,9 @@ const CIRCLE_COLOR: Vec4 = [0.2, 0.2, 0.9, 1.0];
 
 fn main() {
     env::set_var("RUST_BACKTRACE", "1");
+
+    // TEST
+    unsafe { text::test(); }
 
     let event_loop = winit::event_loop::EventLoopBuilder::new().build();
     let (_window, display) = glium::backend::glutin::SimpleWindowBuilder::new().build(&event_loop);
@@ -124,7 +130,6 @@ fn main() {
     // Compile shaders
     shader::create_shaders(&mut state);
 
-    // TEST: create some textures
     texture::create_to_assets("x.png", &mut state);
     texture::create_to_assets("o.png", &mut state);
     texture::create_to_assets("sandwich.png", &mut state);

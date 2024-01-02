@@ -137,7 +137,7 @@ pub fn draw_line_world<'a>(a: &Vec3, b: &Vec3, color: Vec4, width: f32, cheap: b
         rotation = PI / 2.0;
     }
 
-    let ratio = (dist + width) / width; // TODO: color2
+    let ratio = (dist + width) / width;
     
     let shader = if cheap { "cheap_line" } 
                  else     { "line"       };
@@ -244,7 +244,7 @@ pub fn draw_all(frame: &mut glium::Frame, state: &mut State) {
             Some(command) => {
                 draw_immediate(command, frame, state);
             },
-            None => break, // TEST: potential crash here
+            None => break,
         }
     }
 }

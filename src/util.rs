@@ -217,7 +217,6 @@ pub fn multiply_quat(quat: &Quat, scalar: f32) -> Quat {
     return res;
 }
 
-// FIXME: doesn't work??
 pub fn is_pointing_towards_camera(center: &Vec3, normal: &Vec3) -> bool {
     return vec3::dot(&center, &normal) < 0.0;
 }

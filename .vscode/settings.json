@@ -3,6 +3,8 @@
         "glium",
         "glutin",
         "Srgb",
+        "uninit",
+        "Uninit",
         "vtex",
         "winit"
     ]
