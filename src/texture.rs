@@ -35,5 +35,21 @@ pub fn create(filename: &str, state: &state::State) -> Texture {
     };
 }
 
+pub fn from_grayscale_buffer(buffer: Vec<u8>, width: u32, height: u32, name: &str, state: &state::State) -> Texture {
+    let image_data = glium::texture::RawImage2d {
+        data: std::borrow::Cow::Owned(buffer),
+        format: glium::texture::ClientFormat::U8,
+        width,
+        height,
+    };
+
+    let texture = glium::texture::SrgbTexture2d::new(&state.display, image_data).unwrap();
+
+    return Texture {
+        texture,
+        name: name.to_string(),
+    };
+}
+
 
 

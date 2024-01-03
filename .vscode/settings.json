@@ -1,5 +1,7 @@
 {
     "cSpell.words": [
+        "bindgen",
+        "freetype",
         "glium",
         "glutin",
         "Srgb",

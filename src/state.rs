@@ -10,7 +10,6 @@ use std::collections::binary_heap;
 use crate::Vertex;
 
 pub struct State<'a> {
-    // Engine
     pub time: time::Time,
     pub resolution: Vec2u,
     pub quad_vertices: glium::VertexBuffer<Vertex>,
@@ -29,6 +28,8 @@ pub struct State<'a> {
     pub quad_params: glium::DrawParameters<'a>,
     pub cube_params: glium::DrawParameters<'a>,
     pub draw_queue: binary_heap::BinaryHeap<draw::DrawCommand<'a>>,
+
+    pub freetype: Option<crate::bindings::FT_Library>,
 
     pub input: input::Input,
     pub game: game::GameInfo,

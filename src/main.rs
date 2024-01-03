@@ -1,3 +1,4 @@
+#![allow(non_upper_case_globals, non_camel_case_types, non_snake_case, dead_code)]
 
 mod bindings;
 
@@ -50,9 +51,6 @@ const CIRCLE_COLOR: Vec4 = [0.2, 0.2, 0.9, 1.0];
 fn main() {
     env::set_var("RUST_BACKTRACE", "1");
 
-    // TEST
-    unsafe { text::test(); }
-
     let event_loop = winit::event_loop::EventLoopBuilder::new().build();
     let (_window, display) = glium::backend::glutin::SimpleWindowBuilder::new().build(&event_loop);
     
@@ -98,6 +96,7 @@ fn main() {
         mouse_ray: vec3::create(),
         last_main_time: 0.0,
         input: input::get_input(),
+        freetype: None,
 
         quad_params: glium::DrawParameters {
             depth: glium::Depth {
@@ -133,6 +132,9 @@ fn main() {
     texture::create_to_assets("x.png", &mut state);
     texture::create_to_assets("o.png", &mut state);
     texture::create_to_assets("sandwich.png", &mut state);
+
+    // TEST
+    unsafe { text::create_glyph_textures(&mut state); }
 
     event_loop.run(move |event, _, control_flow| {
 
@@ -181,6 +183,9 @@ fn main_loop(state: &mut State) {
     mat4::mul(&mut transform_mat, &translate_mat, &rotation_mat);
     
     state.game.cube_transform_matrix = transform_mat;
+
+    // TEST
+    draw::draw_screen_billboard([0.5, 0.5, -1.0], [0.3, 0.3], 0.0, [1.0, 1.0, 1.0, 1.0].into_iter(), draw::TexArg::One("glyph_A"), "text", state);
 
     // Get intersection with cube
     let pos_on_cube = get_mouse_pos_on_cube(&state);

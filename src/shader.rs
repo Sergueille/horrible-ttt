@@ -26,6 +26,7 @@ pub fn create_shaders<'a>(state: &'a mut state::State) {
         define_program!("default_color", "color", "vtex"),
         define_program!("line", "line_frag", "vtex"),
         define_program!("cheap_line", "cheap_line_frag", "vtex"),
+        define_program!("text", "text_frag", "vtex"),
     ];
 
     for info in shader_infos.into_iter() {
