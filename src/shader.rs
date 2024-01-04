@@ -21,6 +21,8 @@ pub struct Shader {
 }
 
 pub fn create_shaders<'a>(state: &'a mut state::State) {
+    println!("LOG: Loading shaders.");
+
     let shader_infos = vec![
         define_program!("default_tex", "texture", "vtex"),
         define_program!("default_color", "color", "vtex"),

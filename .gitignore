@@ -2,3 +2,4 @@
 /build
 build.zip
 src/bindings.rs
+.vscode/

@@ -21,7 +21,7 @@ pub struct DrawCommand<'a> {
     pub draw_type: DrawType,
 
     pub params: [f32; PARAM_COUNT],
-    pub tex: TexArg<'a>,
+    pub tex: TexArg,
 }
 
 // REFACT: why so many traits?
@@ -49,15 +49,15 @@ impl<'a> PartialEq for DrawCommand<'a> {
     }
 }
 
-pub enum TexArg<'a> {
+pub enum TexArg {
     None,
-    One(&'a str)
+    One(String)
 }
 
 // OPTI: group draw calls somehow
 // position:    center of the quad, (0, 0) is bottom left, (1, wh) is the top right, last coordinate is z
 // size:        size of the quad, 1 is screen height
-pub fn draw_screen_billboard<'a, A>(position: Vec3, size: Vec2, rotation: f32, params: A, tex: TexArg<'a>, shader: &'a str, state: &mut State<'a>) where A: Iterator<Item = f32>{
+pub fn draw_screen_billboard<'a, A>(position: Vec3, size: Vec2, rotation: f32, params: A, tex: TexArg, shader: &'a str, state: &mut State<'a>) where A: Iterator<Item = f32>{
     let ratio = state.resolution.y as f32 / state.resolution.x as f32;
 
     // OPTI: hum
@@ -145,7 +145,7 @@ pub fn draw_line_world<'a>(a: &Vec3, b: &Vec3, color: Vec4, width: f32, cheap: b
     draw_screen_billboard(position, size, rotation, [color[0], color[1], color[2], color[3], ratio].into_iter(), TexArg::None, shader, state);
 }
 
-pub fn draw_world_billboard<'a>(position: Vec3, size: Vec2, rotation: f32, color: Vec4, tex: TexArg<'a>, shader: &'a str, state: &mut State<'a>) {
+pub fn draw_world_billboard<'a>(position: Vec3, size: Vec2, rotation: f32, color: Vec4, tex: TexArg, shader: &'a str, state: &mut State<'a>) {
     let mut screen_position = vec4::create();
     vec4::transform_mat4(&mut screen_position, &util::vec3_to_4(&position), &state.camera_projection_mat);
 
@@ -190,7 +190,7 @@ pub fn draw_cube<'a>(transform: Mat4, color: Vec4, shader: &'a str, state: &mut 
     });
 }
 
-pub fn draw_immediate(command: DrawCommand<'_>, frame: &mut glium::Frame, state: &mut State) {
+pub fn draw_immediate<F>(command: DrawCommand<'_>, frame: &mut F, state: &mut State) where F: Surface {
     let projection;
     if command.apply_projection { 
         projection = util::mat_to_uniform(&state.camera_projection_mat); 
@@ -219,7 +219,7 @@ pub fn draw_immediate(command: DrawCommand<'_>, frame: &mut glium::Frame, state:
     match command.tex {
         TexArg::None => { },
         TexArg::One(t1) => {
-            uniforms.add("tex", &assets::get_texture(t1, &state.assets).texture);
+            uniforms.add("tex", &assets::get_texture(t1.as_str(), &state.assets).texture);
         }
     }
 
@@ -237,7 +237,7 @@ pub fn draw_immediate(command: DrawCommand<'_>, frame: &mut glium::Frame, state:
     }
 }
 
-pub fn draw_all(frame: &mut glium::Frame, state: &mut State) {
+pub fn draw_all<F>(frame: &mut F, state: &mut State) where F: glium::Surface {
     loop {
         let next = state.draw_queue.pop();
         match next {

@@ -12,10 +12,12 @@ mod draw;
 mod game;
 mod input;
 mod text;
+mod atlas_drawer;
 
 #[macro_use]
 extern crate glium;
 extern crate gl_matrix;
+extern crate csv;
 
 use std::env;
 
@@ -97,6 +99,7 @@ fn main() {
         last_main_time: 0.0,
         input: input::get_input(),
         freetype: None,
+        font_info: crate::text::empty_font_info(),
 
         quad_params: glium::DrawParameters {
             depth: glium::Depth {
@@ -133,8 +136,11 @@ fn main() {
     texture::create_to_assets("o.png", &mut state);
     texture::create_to_assets("sandwich.png", &mut state);
 
-    // TEST
-    unsafe { text::create_glyph_textures(&mut state); }
+    // Init text
+    text::init_text(&mut state);
+
+    // Uncomment this to create a font atlas
+    // unsafe { atlas_drawer::load_font(&mut state); }
 
     event_loop.run(move |event, _, control_flow| {
 
@@ -158,6 +164,10 @@ fn main() {
         // Prevent calling loop too many times, wait a bit if necessary
         if state.time.time - state.last_main_time > 1.0 / (MAX_FPS as f32) {
             main_loop(&mut state);
+
+            // Replace pervious line by this to view font atlas
+            // atlas_drawer::preview_atlas(&mut state);
+
             state.last_main_time = state.time.time;
             
             // reset button states
@@ -183,9 +193,6 @@ fn main_loop(state: &mut State) {
     mat4::mul(&mut transform_mat, &translate_mat, &rotation_mat);
     
     state.game.cube_transform_matrix = transform_mat;
-
-    // TEST
-    draw::draw_screen_billboard([0.5, 0.5, -1.0], [0.3, 0.3], 0.0, [1.0, 1.0, 1.0, 1.0].into_iter(), draw::TexArg::One("glyph_A"), "text", state);
 
     // Get intersection with cube
     let pos_on_cube = get_mouse_pos_on_cube(&state);
@@ -231,7 +238,7 @@ fn main_loop(state: &mut State) {
                     let mut color = if block_type == game::BlockType::Cross { CROSS_COLOR } else { CIRCLE_COLOR };
                     color[3] = 0.2;
                     draw::draw_world_billboard(position, [0.05, 0.05], 0.0, [1.0, 1.0, 1.0, 1.0], 
-                        draw::TexArg::One(&get_symbol_texture(block_type)), &"default_tex", state);
+                        draw::TexArg::One(get_symbol_texture(block_type).to_string()), &"default_tex", state);
                     draw_cube_on_block(&pos, color, &"default_color", state);
                 }
             }
@@ -365,7 +372,7 @@ fn handle_turn(pos_on_cube: Option<CubePosition>, state: &mut State) {
         let billboard_pos = apply_cube_transform(&get_block_coords(&pos_vec, &state), &state);
         let color = vec4::from_values(1.0, 1.0, 1.0, (state.time.time * 10.0).sin() * 0.25 + 0.75);
         draw::draw_world_billboard(billboard_pos, [0.05, 0.05], 0.0, color,
-            draw::TexArg::One(&get_symbol_texture_of_turn(state)), "default_tex", state);
+            draw::TexArg::One(get_symbol_texture_of_turn(state).to_string()), "default_tex", state);
 
         draw_column_outline(&block_pos, 0, state);
         draw_column_outline(&block_pos, 1, state);
