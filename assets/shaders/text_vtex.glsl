@@ -9,8 +9,8 @@ out vec4 color_i;
 
 void main() {
     gl_Position = vec4(
-        pos_attr.x + pos_attr.z * pos.x - 0.5,
-        pos_attr.y + pos_attr.w * pos.y - 0.5, 
+        (pos_attr.x + pos_attr.z * pos.x) * 2.0 - 1.0,
+        (pos_attr.y + pos_attr.w * pos.y) * 2.0 - 1.0, 
         0.0, 1.0);
 
     uv_i = vec2(

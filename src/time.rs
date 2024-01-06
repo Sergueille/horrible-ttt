@@ -12,14 +12,11 @@ pub fn init_time() -> Time {
 }
 
 impl Time {
-    pub fn update(self: &mut Time) {
-        let new_time = SystemTime::now()
+    pub fn update_time(self: &mut Time) {
+        self.time = SystemTime::now()
             .duration_since(self.start_time)
             .expect("Uuuh?")
             .as_secs_f32();
-    
-        self.delta_time = new_time - self.time;
-        self.time = new_time;
     }
 }
 

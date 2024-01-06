@@ -141,7 +141,7 @@ fn main() {
         // Get mouse delta position
         vec2::sub(&mut state.mouse_delta_normalized, &state.mouse_coords_normalized, &old_mous_pos);
 
-        state.time.update();
+        state.time.update_time();
 
         // If resolution changed, updates values
         let new_resolution = vec2u(_window.inner_size().width, _window.inner_size().height);
@@ -152,6 +152,9 @@ fn main() {
 
         // Prevent calling loop too many times, wait a bit if necessary
         if state.time.time - state.last_main_time > 1.0 / (MAX_FPS as f32) {
+            state.time.delta_time = state.time.time - state.last_main_time;
+            state.last_main_time = state.time.time;
+
             if CREATE_ATLAS {
                 atlas_drawer::preview_atlas(&mut state);
             }
@@ -159,8 +162,6 @@ fn main() {
                 main_loop(&mut state);
             }
 
-            state.last_main_time = state.time.time;
-            
             // reset button states
             input::reset_input(&mut state);
         }
@@ -281,7 +282,7 @@ fn main_loop(state: &mut State) {
                 }
 
                 // Take delta time into account
-                state.game.cube_rotation_velocity = util::multiply_quat(&state.game.cube_rotation_velocity, 1.0 / state.time.delta_time / 300.0);
+                state.game.cube_rotation_velocity = util::multiply_quat(&state.game.cube_rotation_velocity, 1.0 / state.time.delta_time);
 
                 state.game.last_mouse_sphere_intersection = Some(to);
             }
@@ -336,6 +337,10 @@ fn main_loop(state: &mut State) {
         quat::mul(&mut new_rotation, &delta, &state.game.cube_release_rotation);
         state.game.cube_rotation = new_rotation;
     }
+
+    text::draw_text(
+        &format!("{}ms, {} FPS", (state.time.delta_time * 1000.0) as i32, (1.0 / state.time.delta_time) as i32), 
+        [0.005, 0.98], 0.25, [1.0, 1.0, 1.0, 1.0], state);
 
     // Make sure the cube rotation is normalized (sometimes isn't because of precision issues) 
     let mut normalized = quat::create();
