@@ -25,7 +25,7 @@ pub struct State<'a> {
     pub mouse_ray: Vec3,
     pub last_main_time: f32,
 
-    pub font_info: crate::text::FontInfo,
+    pub text_data: crate::text::TextData,
     
     pub quad_params: glium::DrawParameters<'a>,
     pub cube_params: glium::DrawParameters<'a>,

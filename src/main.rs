@@ -46,6 +46,9 @@ const ROTATE_SPEED_DECREASE: f32 = 500.0;
 const CUBE_POS: [f32; 3] = [0.0, 0.0, -5.0];
 static FOV: f32 = PI / 4.0;
 
+// Set to true to create a font atlas
+const CREATE_ATLAS: bool = false;
+
 // TEST
 const CROSS_COLOR: Vec4 = [0.9, 0.2, 0.2, 1.0];
 const CIRCLE_COLOR: Vec4 = [0.2, 0.2, 0.9, 1.0];
@@ -83,6 +86,7 @@ fn main() {
     };
 
     let mut state = state::State {
+        text_data: crate::text::empty_text_data(&display),
         time: time::init_time(),
         resolution: vec2u(0, 0),
         quad_vertices, 
@@ -99,7 +103,6 @@ fn main() {
         last_main_time: 0.0,
         input: input::get_input(),
         freetype: None,
-        font_info: crate::text::empty_font_info(),
 
         quad_params: glium::DrawParameters {
             depth: glium::Depth {
@@ -137,10 +140,12 @@ fn main() {
     texture::create_to_assets("sandwich.png", &mut state);
 
     // Init text
-    text::init_text(&mut state);
-
-    // Uncomment this to create a font atlas
-    // unsafe { atlas_drawer::load_font(&mut state); }
+    if CREATE_ATLAS {
+        unsafe { atlas_drawer::load_font(&mut state); }
+    }
+    else {
+        text::init_text(&mut state);
+    }
 
     event_loop.run(move |event, _, control_flow| {
 
@@ -163,10 +168,12 @@ fn main() {
 
         // Prevent calling loop too many times, wait a bit if necessary
         if state.time.time - state.last_main_time > 1.0 / (MAX_FPS as f32) {
-            main_loop(&mut state);
-
-            // Replace pervious line by this to view font atlas
-            // atlas_drawer::preview_atlas(&mut state);
+            if CREATE_ATLAS {
+                atlas_drawer::preview_atlas(&mut state);
+            }
+            else {
+                main_loop(&mut state);
+            }
 
             state.last_main_time = state.time.time;
             
@@ -196,6 +203,9 @@ fn main_loop(state: &mut State) {
 
     // Get intersection with cube
     let pos_on_cube = get_mouse_pos_on_cube(&state);
+
+    // TEST
+    text::draw_text("Hello world!", [0.5, 0.5], 1.0, [1.0, 1.0, 1.0, 1.0], state);
 
     // Draw lines
     for i in [0, 6, 1, 2, 3, 4, 5] {
@@ -335,6 +345,7 @@ fn main_loop(state: &mut State) {
     state.game.cube_rotation = normalized;
 
     draw::draw_all(&mut frame, state);
+    text::draw_all_text(&mut frame, state);
 
     frame.finish().expect("Uuh?");
 }

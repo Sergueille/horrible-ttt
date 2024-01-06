@@ -20,7 +20,7 @@ macro_rules! check_err {
 }
 
 pub const CHARS_TO_LOAD: &str = "0123456789azertyuiopqsdfghjklmwxcvbnAZERTYUIOPQSDFGHJKLMWXCVBN,;:!?./%$*&\"'(-_)=+[]{}#~^\\`|<>éèàùâêîôûäëïöüÿ";
-pub const PIXEL_SIZE: u32 = 16;
+pub const PIXEL_SIZE: u32 = 32;
 
 pub unsafe fn load_font(state: &mut State) {
     uninit!(lib, FT_Library);
@@ -36,9 +36,9 @@ pub unsafe fn load_font(state: &mut State) {
 
     FT_Set_Pixel_Sizes(face, PIXEL_SIZE, PIXEL_SIZE);
 
-    state.font_info.chars = Vec::with_capacity(CHARS_TO_LOAD.len());
+    state.text_data.chars = std::collections::HashMap::new();
 
-    state.font_info.line_height = ((*face).ascender - (*face).descender) as f32 / 64.0;
+    state.text_data.line_height = ((*face).ascender - (*face).descender) as f32 / PIXEL_SIZE as f32 * 0.6;
 
     // Characters to load
     for char in CHARS_TO_LOAD.chars() {
@@ -71,16 +71,14 @@ pub unsafe fn load_font(state: &mut State) {
 
         let tex_name = format!("glyph_{}", char);
     
-        let tex = crate::texture::from_grayscale_buffer(buffer_vec.clone(), size_x, size_y, &tex_name,  &state);
+        let tex = crate::texture::from_grayscale_buffer(buffer_vec.clone(), size_x, size_y, &tex_name, &state);
         state.assets.insert(tex_name, crate::assets::Asset::Texture(tex));
-
-        // image::save_buffer_with_format(format!("./assets/font/glyph_{}", char), &buffer_vec, size_x, size_y, image::ColorType::L8, image::ImageFormat::Png).unwrap();
-        
-        state.font_info.chars.push(text::GlyphInfo {
+    
+        state.text_data.chars.insert(char, text::GlyphInfo {
             char,
             x_min: glyph.bitmap_left as f32,
-            x_max: glyph.bitmap_left as f32 + glyph.bitmap.width as f32,
-            y_min: glyph.bitmap_top as f32 - glyph.bitmap.rows as f32,
+            x_max: (glyph.bitmap_left as f32 + glyph.bitmap.width as f32),
+            y_min: (glyph.bitmap_top as f32 - glyph.bitmap.rows as f32),
             y_max: glyph.bitmap_top as f32,
             advance: glyph.metrics.horiAdvance as f32,
             u_min: 0.0,
@@ -104,50 +102,66 @@ fn draw_atlas<T>(frame: &mut T, print_coords: bool, state: &mut State) where T: 
 
     let ratio = state.resolution.x as f32 / state.resolution.y as f32;
 
+    let mut file_string = String::new();
     if print_coords {
-        println!("char,\tx_min,\tx_max,\ty_min,\ty_max,\tadvance,\tu_min,\tu_max,\tv_min,\tv_max,");
+        file_string.push_str("\"char\",\"x_min\",\"x_max\",\"y_min\",\"y_max\",\"advance\",\"u_min\",\"u_max\",\"v_min\",\"v_max\"\n");
     }
 
-    for i in 0..state.font_info.chars.len() {
-        let char = &state.font_info.chars[i];
+    // FIXME: the characters are different this time???
+    for char in CHARS_TO_LOAD.chars() {
+        let info = &state.text_data.chars[&char];
 
-        if pos[0] + char.x_max * scale > ratio - margin * scale {
+        if pos[0] + info.x_max * scale > ratio - margin * scale {
             pos[0] = margin * scale;
-            pos[1] += state.font_info.line_height * scale;
+            pos[1] += state.text_data.line_height * scale;
         }
 
-        pos[0] -= char.x_min * scale;
+        pos[0] -= info.x_min * scale;
 
         let rect_pos = [
-            pos[0] + (char.x_max + char.x_min) / 2.0 * scale,
-            pos[1] + (char.y_max + char.y_min) / 2.0 * scale,
+            pos[0] + (info.x_max + info.x_min) / 2.0 * scale,
+            pos[1] + (info.y_max + info.y_min) / 2.0 * scale,
             -1.0,
         ];
 
         let rect_size = [
-            (char.x_max - char.x_min) * scale,
-            (char.y_max - char.y_min) * scale,
+            (info.x_max - info.x_min) * scale,
+            (info.y_max - info.y_min) * scale,
         ];
 
         if print_coords {
-            println!("\"{}\", {}, {}, {}, {}, {}, {}, {}, {}, {},", 
-                if char.char == '"' { "\\\"".to_string() } else { char.char.to_string() }, // FIXME: escape backslash
-                char.x_min,
-                char.x_max,
-                char.y_min,
-                char.y_max,
-                char.advance,
-                (pos[0] + char.x_min * scale) / ratio, 
-                (pos[0] + char.x_max * scale) / ratio,
-                pos[1] + char.y_min * scale, 
-                pos[1] + char.y_max * scale, 
+            // Escape delimiters and backslash
+            let escaped_char = if info.char == '"' || info.char == '\\' {
+                format!("\\{}", info.char)
+            }
+            else {
+                info.char.to_string()
+            };
+
+            let line_text = format!("\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\"\n", // What a beautiful code
+                escaped_char,
+                info.x_min / PIXEL_SIZE as f32,
+                info.x_max / PIXEL_SIZE as f32,
+                info.y_min / PIXEL_SIZE as f32,
+                info.y_max / PIXEL_SIZE as f32,
+                info.advance / PIXEL_SIZE as f32,
+                (pos[0] + info.x_min * scale) / ratio, 
+                (pos[0] + info.x_max * scale) / ratio,
+                pos[1] + info.y_min * scale, 
+                pos[1] + info.y_max * scale, 
             );
+            file_string.push_str(&line_text);
         }
 
-        let tex_name = format!("glyph_{}", char.char);
+        let tex_name = format!("glyph_{}", info.char);
         crate::draw::draw_screen_billboard(rect_pos, rect_size, 0.0, [1.0, 1.0, 1.0, 1.0].into_iter(), crate::draw::TexArg::One(tex_name), "default_tex", state);
 
-        pos[0] += state.font_info.chars[i].x_max * scale;
+        pos[0] += state.text_data.chars[&char].x_max * scale;
+    }
+
+    if print_coords {
+        std::fs::write("./assets/font_info.csv", file_string).unwrap();
+        println!("Exported atlas!");
     }
 
     crate::draw::draw_all(frame, state);
@@ -180,7 +194,13 @@ pub fn preview_atlas(state: &mut State) {
         draw_atlas(&mut framebuffer, true, state);
         let data = target_tex.read::<glium::texture::RawImage2d<u8>>().data;
         let data_vec = Vec::from(data);
-        let data_vec: Vec<u8> = data_vec.into_iter().step_by(4).collect();
+        let data_vec: Vec<u8> = data_vec.into_iter()
+            .step_by(4)
+            .collect::<Vec<u8>>()
+            .chunks(state.resolution.x as usize)
+            .rev()
+            .flat_map(|row| row.iter()).cloned()
+            .collect();
 
         image::save_buffer_with_format("./assets/font_atlas.png", &data_vec, state.resolution.x, state.resolution.y, image::ColorType::L8, image::ImageFormat::Png).unwrap();
     }
