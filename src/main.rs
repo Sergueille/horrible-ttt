@@ -13,6 +13,7 @@ mod game;
 mod input;
 mod text;
 mod atlas_drawer;
+mod movement;
 
 #[macro_use]
 extern crate glium;
@@ -21,7 +22,7 @@ extern crate csv;
 
 use std::env;
 
-use game::{GameInfo, GameState, BlockType};
+use game::{GameState, BlockType};
 use gl_matrix::quat;
 use gl_matrix::vec2;
 use gl_matrix::vec3;
@@ -42,7 +43,7 @@ implement_vertex!(Vertex, pos, uv);
 const MAX_FPS: i32 = 100; 
 const ROW_COUNT: i32 = 6;
 const COUNT_TO_WIN: i32 = 5;
-const ROTATE_SPEED_DECREASE: f32 = 500.0;
+const ROTATE_SPEED_DECREASE: f32 = 5.0;
 const CUBE_POS: [f32; 3] = [0.0, 0.0, -5.0];
 static FOV: f32 = PI / 4.0;
 
@@ -68,22 +69,7 @@ fn main() {
     let cube_indices = glium::index::IndexBuffer::new(&display, glium::index::PrimitiveType::TrianglesList, &util::CUBE_INDICES).unwrap();
     
     // Initial state
-    let game_state = GameInfo {
-        cube_transform_matrix: mat4::create(),
-        cube_rotation: quat::create(),
-        cube_rotation_velocity: quat::create(),
-        cube_size: 2.0,
-
-        blocks: [game::BlockType::None; (ROW_COUNT * ROW_COUNT * ROW_COUNT) as usize],
-        start_mouse_sphere_intersection: None,
-        last_mouse_sphere_intersection: None,
-        mouse_sphere_radius: 0.0,
-        drag_start_rotation: quat::create(),
-        last_face_id: -1,
-        depth: 0,
-
-        state: GameState::Turn(BlockType::Cross),
-    };
+    let game_state = game::initial_state();
 
     let mut state = state::State {
         text_data: crate::text::empty_text_data(&display),
@@ -128,10 +114,6 @@ fn main() {
         game: game_state,
     };
 
-    // Reset rotation
-    quat::identity(&mut state.game.cube_rotation);
-    quat::identity(&mut state.game.cube_rotation_velocity);
-
     // Compile shaders
     shader::create_shaders(&mut state);
 
@@ -146,6 +128,8 @@ fn main() {
     else {
         text::init_text(&mut state);
     }
+
+    start(&mut state);
 
     event_loop.run(move |event, _, control_flow| {
 
@@ -183,6 +167,13 @@ fn main() {
     });
 }
 
+fn start(state: &mut State) {
+    state.game.cube_size_mov.restart(&state.time);
+
+    quat::random(&mut state.game.cube_rotation_velocity);
+    quat::random(&mut state.game.cube_release_rotation);
+}
+
 fn main_loop(state: &mut State) {
     let mut frame = state.display.draw();
 
@@ -201,24 +192,25 @@ fn main_loop(state: &mut State) {
     
     state.game.cube_transform_matrix = transform_mat;
 
+    state.game.cube_size_mov = state.game.cube_size_mov.update(state);
+
     // Get intersection with cube
     let pos_on_cube = get_mouse_pos_on_cube(&state);
-
-    // TEST
-    text::draw_text("Hello world!", [0.5, 0.5], 1.0, [1.0, 1.0, 1.0, 1.0], state);
 
     // Draw lines
     for i in [0, 6, 1, 2, 3, 4, 5] {
         for j in [0, 6, 1, 2, 3, 4, 5] {
-            let i_norm = state.game.cube_size / (ROW_COUNT as f32) * i as f32 - 1.0;
-            let j_norm = state.game.cube_size / (ROW_COUNT as f32) * j as f32 - 1.0;
+            let half_size = state.game.cube_size / 2.0;
 
-            let a = apply_cube_transform(&[i_norm, -1.0, j_norm], &state);
-            let b = apply_cube_transform(&[i_norm,  1.0, j_norm], &state);
-            let c = apply_cube_transform(&[-1.0, i_norm, j_norm], &state);
-            let d = apply_cube_transform(&[ 1.0, i_norm, j_norm], &state);
-            let e = apply_cube_transform(&[i_norm, j_norm, -1.0], &state);
-            let f = apply_cube_transform(&[i_norm, j_norm,  1.0], &state);
+            let i_norm = state.game.cube_size / (ROW_COUNT as f32) * i as f32 - half_size;
+            let j_norm = state.game.cube_size / (ROW_COUNT as f32) * j as f32 - half_size;
+
+            let a = apply_cube_transform(&[i_norm, -half_size, j_norm], &state);
+            let b = apply_cube_transform(&[i_norm,  half_size, j_norm], &state);
+            let c = apply_cube_transform(&[-half_size, i_norm, j_norm], &state);
+            let d = apply_cube_transform(&[ half_size, i_norm, j_norm], &state);
+            let e = apply_cube_transform(&[i_norm, j_norm, -half_size], &state);
+            let f = apply_cube_transform(&[i_norm, j_norm,  half_size], &state);
 
             let corner = (i == 0 || i == 6) && 
                          (j == 0 || j == 6);
@@ -258,7 +250,9 @@ fn main_loop(state: &mut State) {
     // Mouse control
     let mut moving_cube = false;
 
+    // Dragging
     if state.input.lmb.hold || state.input.mmb.hold {
+        // Intersection with sphere
         let intersection = util::intersect_line_sphere(&CUBE_POS, state.game.mouse_sphere_radius, &[0.0, 0.0, 0.0], &state.mouse_ray);
         moving_cube = state.game.start_mouse_sphere_intersection != None && intersection != None;
 
@@ -277,8 +271,6 @@ fn main_loop(state: &mut State) {
 
                 quat::mul(&mut state.game.cube_rotation, &delta, &state.game.drag_start_rotation);
 
-                state.game.cube_rotation_velocity = delta;
-
                 match state.game.last_mouse_sphere_intersection {
                     Some(vec) => {
                         quat::rotation_to(&mut state.game.cube_rotation_velocity, &vec, &to);
@@ -288,13 +280,18 @@ fn main_loop(state: &mut State) {
                     }
                 }
 
+                // Take delta time into account
+                state.game.cube_rotation_velocity = util::multiply_quat(&state.game.cube_rotation_velocity, 1.0 / state.time.delta_time / 300.0);
+
                 state.game.last_mouse_sphere_intersection = Some(to);
             }
-            else {
-                state.game.cube_rotation_velocity = util::multiply_quat(&state.game.cube_rotation_velocity, 0.7); // Prevent the cube from spinning too much 
-            }
+
+            // Update values to make them up to date when mouse is released
+            state.game.cube_release_rotation = state.game.cube_rotation.clone();
+            state.game.cube_release_time = state.time.time;
         }
         else {
+            // Is mouse pointing the cube?
             match pos_on_cube {
                 Some(ref pos) => {
                     let mut tmp1 = vec3::create();
@@ -331,11 +328,12 @@ fn main_loop(state: &mut State) {
 
     if !moving_cube {
         // Decrease velocity
-        state.game.cube_rotation_velocity = util::multiply_quat(&state.game.cube_rotation_velocity, (-state.time.delta_time * ROTATE_SPEED_DECREASE).exp()) ;
+        let mult = (1.0 - (-ROTATE_SPEED_DECREASE * (state.time.time - state.game.cube_release_time)).exp()) / ROTATE_SPEED_DECREASE;
+        let delta = util::multiply_quat(&state.game.cube_rotation_velocity, mult);
 
         // Apply velocity rotation
         let mut new_rotation = quat::create();
-        quat::mul(&mut new_rotation, &state.game.cube_rotation_velocity, &state.game.cube_rotation);
+        quat::mul(&mut new_rotation, &delta, &state.game.cube_release_rotation);
         state.game.cube_rotation = new_rotation;
     }
 

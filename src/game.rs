@@ -2,6 +2,9 @@
 use crate::*;
 use crate::state::State;
 use crate::util::Vec3i;
+use crate::movement::Movement;
+
+pub const BASE_CUBE_SIZE: f32 = 2.0;
 
 pub struct GameInfo {
     pub cube_transform_matrix: Mat4,
@@ -9,6 +12,8 @@ pub struct GameInfo {
     pub cube_size: f32,
     pub blocks: [game::BlockType; (ROW_COUNT * ROW_COUNT * ROW_COUNT) as usize],
     pub cube_rotation_velocity: Quat,
+    pub cube_release_rotation: Quat,
+    pub cube_release_time: f32,
     
     pub last_mouse_sphere_intersection: Option<Vec3>,
     pub start_mouse_sphere_intersection: Option<Vec3>,
@@ -17,6 +22,8 @@ pub struct GameInfo {
 
     pub last_face_id: i32,
     pub depth: i32,
+
+    pub cube_size_mov: Movement<f32>, 
 
     pub state: GameState,
 }
@@ -29,6 +36,31 @@ pub enum BlockType {
 #[derive(Clone)]
 pub enum GameState {
     Turn(BlockType), GameWon(VictoryInfo),
+}
+
+pub fn initial_state() -> GameInfo {
+    return GameInfo {
+        cube_transform_matrix: mat4::create(),
+        cube_rotation: quat::create(),
+        cube_rotation_velocity: quat::create(),
+        cube_size: BASE_CUBE_SIZE,
+        cube_release_rotation: quat::create(),
+        cube_release_time: 0.0,
+
+        blocks: [game::BlockType::None; (ROW_COUNT * ROW_COUNT * ROW_COUNT) as usize],
+        start_mouse_sphere_intersection: None,
+        last_mouse_sphere_intersection: None,
+        mouse_sphere_radius: 0.0,
+        drag_start_rotation: quat::create(),
+        last_face_id: -1,
+        depth: 0,
+
+        cube_size_mov: Movement::new(0.0, 1.0, 1.0, movement::EaseType::Ease, |val, state| {
+            state.game.cube_size = val * BASE_CUBE_SIZE;
+        }),
+
+        state: GameState::Turn(BlockType::Cross),
+    };
 }
 
 pub fn pos_to_id(pos: &Vec3i) -> i32 {
