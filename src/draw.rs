@@ -167,7 +167,7 @@ pub fn draw_world_billboard<'a>(position: Vec3, size: Vec2, rotation: f32, color
     draw_screen_billboard(util::vec4_to_3(&screen_position), scale_screen, rotation, color.into_iter(), tex, shader, state);
 }
 
-pub fn draw_cube<'a>(transform: Mat4, color: Vec4, shader: &'a str, state: &mut State<'a>) {
+pub fn draw_cube<'a>(transform: Mat4, z_priority: f32, color: Vec4, tex: TexArg, shader: &'a str, state: &mut State<'a>) {
     // Get z coordinate
     let mut center = [0.0, 0.0, 0.0, 1.0];
     let mut tmp = [0.0, 0.0, 0.0, 1.0];
@@ -180,13 +180,13 @@ pub fn draw_cube<'a>(transform: Mat4, color: Vec4, shader: &'a str, state: &mut 
     }
 
     state.draw_queue.push(DrawCommand {
-        z_pos: center[2] - 5.0, // TODO: add shift depending on the size of the cube
+        z_pos: (center[2] / center[3]) - z_priority, // TODO: add shift depending on the size of the cube
         shader,
-        transform: transform,
+        transform,
         apply_projection: true,
         draw_type: DrawType::Cube,
         params,
-        tex: TexArg::None
+        tex,
     });
 }
 
@@ -216,10 +216,13 @@ pub fn draw_immediate<F>(command: DrawCommand<'_>, frame: &mut F, state: &mut St
     };  
 
     // OPTI: crate non-dynamic uniforms somehow
+
+    let tex;
     match command.tex {
         TexArg::None => { },
         TexArg::One(t1) => {
-            uniforms.add("tex", &assets::get_texture(t1.as_str(), &state.assets).texture);
+            tex = assets::get_texture(t1.as_str(), &state.assets).get_uniform();
+            uniforms.add("tex", &tex);
         }
     }
 

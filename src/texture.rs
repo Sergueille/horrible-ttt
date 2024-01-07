@@ -1,16 +1,16 @@
 
 extern crate image;
 
-use crate::state;
+use crate::{state, assets};
+
+pub enum FilterType {
+    Nearest, Linear
+}
 
 pub struct Texture {
     pub texture: glium::texture::SrgbTexture2d,
     pub name: String,
-}
-
-pub fn create_to_assets(filename: &str, state: &mut state::State) {
-    let res = create(filename, state);
-    state.assets.insert(filename.to_string(), crate::assets::Asset::Texture(res));
+    pub filter: FilterType,
 }
 
 pub fn create(filename: &str, state: &state::State) -> Texture {
@@ -32,6 +32,7 @@ pub fn create(filename: &str, state: &state::State) -> Texture {
     return Texture {
         texture: texture,
         name: filename.to_string(),
+        filter: FilterType::Linear,
     };
 }
 
@@ -48,6 +49,37 @@ pub fn from_grayscale_buffer(buffer: Vec<u8>, width: u32, height: u32, name: &st
     return Texture {
         texture,
         name: name.to_string(),
+        filter: FilterType::Linear,
+    };
+}
+
+impl Texture {
+    pub fn put_in_assets(self, state: &mut state::State) {
+        state.assets.insert(self.name.clone(), assets::Asset::Texture(self));
+    }
+
+    pub fn set_filtering(mut self, filter: FilterType) -> Texture {
+        self.filter = filter;
+        return self;
+    }
+
+    pub fn get_uniform(&self) -> glium::uniforms::Sampler<glium::texture::SrgbTexture2d> {
+        return glium::uniforms::Sampler(&self.texture, get_sampler_behavior(&self.filter));
+    }
+}
+
+fn get_sampler_behavior(filter: &FilterType) -> glium::uniforms::SamplerBehavior {
+    return match filter {
+        FilterType::Nearest => glium::uniforms::SamplerBehavior {
+            magnify_filter: glium::uniforms::MagnifySamplerFilter::Nearest,
+            minify_filter: glium::uniforms::MinifySamplerFilter::Nearest,
+            ..Default::default()
+        },
+        FilterType::Linear => glium::uniforms::SamplerBehavior {
+            magnify_filter: glium::uniforms::MagnifySamplerFilter::Linear,
+            minify_filter: glium::uniforms::MinifySamplerFilter::Linear,
+            ..Default::default()
+        },
     };
 }
 

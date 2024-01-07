@@ -45,6 +45,7 @@ const ROW_COUNT: i32 = 6;
 const COUNT_TO_WIN: i32 = 5;
 const ROTATE_SPEED_DECREASE: f32 = 5.0;
 const CUBE_POS: [f32; 3] = [0.0, 0.0, -5.0];
+const BG_SCALE: f32 = 10.0;
 static FOV: f32 = PI / 4.0;
 
 // Set to true to create a font atlas
@@ -117,9 +118,10 @@ fn main() {
     // Compile shaders
     shader::create_shaders(&mut state);
 
-    texture::create_to_assets("x.png", &mut state);
-    texture::create_to_assets("o.png", &mut state);
-    texture::create_to_assets("sandwich.png", &mut state);
+    texture::create("x.png", &mut state).put_in_assets(&mut state);
+    texture::create("o.png", &mut state).put_in_assets(&mut state);
+    texture::create("gray_grid.png", &mut state).set_filtering(texture::FilterType::Nearest).put_in_assets(&mut state);
+    texture::create("sandwich.png", &mut state).put_in_assets(&mut state);
 
     // Init text
     if CREATE_ATLAS {
@@ -220,7 +222,7 @@ fn main_loop(state: &mut State) {
 
             if border {
                 let width = if corner { 0.01 } else { 0.002 };
-                let color = if corner { [1.0, 1.0, 0.5, 1.0] } else { [1.0, 1.0, 1.0, 0.2] };
+                let color = if corner { [0.8, 0.8, 0.8, 1.0] } else { [0.8, 0.8, 0.8, 0.2] };
     
                 draw::draw_line_world(&a, &b, color, width, !corner, state);
                 draw::draw_line_world(&c, &d, color, width, !corner, state);
@@ -337,6 +339,10 @@ fn main_loop(state: &mut State) {
         quat::mul(&mut new_rotation, &delta, &state.game.cube_release_rotation);
         state.game.cube_rotation = new_rotation;
     }
+
+    let mut bg_transform = mat4::create();
+    mat4::scale(&mut bg_transform, &state.game.cube_transform_matrix, &[-BG_SCALE, -BG_SCALE, -BG_SCALE]);
+    draw::draw_cube(bg_transform, -BG_SCALE, [0.1, 0.1, 0.1, 10.0], draw::TexArg::One("gray_grid.png".to_string()), "bg_cube", state);
 
     text::draw_text(
         &format!("{}ms, {} FPS", (state.time.delta_time * 1000.0) as i32, (1.0 / state.time.delta_time) as i32), 
@@ -557,7 +563,7 @@ fn draw_cube_on_block<'a>(pos: &Vec3i, color: Vec4, shader: &'a str, state: &mut
     let cloned = result_transform.clone();
     mat4::scale(&mut result_transform, &cloned, &[scale_amount, scale_amount, scale_amount]);
 
-    draw::draw_cube(result_transform, color, shader, state)
+    draw::draw_cube(result_transform, scale_amount, color, draw::TexArg::None, shader, state)
 }
 
 pub fn draw_line_of_winner(state: &mut State) {
