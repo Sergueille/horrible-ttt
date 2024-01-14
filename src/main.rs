@@ -51,10 +51,6 @@ static FOV: f32 = PI / 4.0;
 // Set to true to create a font atlas
 const CREATE_ATLAS: bool = false;
 
-// TEST
-const CROSS_COLOR: Vec4 = [0.9, 0.2, 0.2, 1.0];
-const CIRCLE_COLOR: Vec4 = [0.2, 0.2, 0.9, 1.0];
-
 fn main() {
     env::set_var("RUST_BACKTRACE", "1");
 
@@ -240,7 +236,7 @@ fn main_loop(state: &mut State) {
                 let position = apply_cube_transform(&get_block_coords(&pos, &state), &state);
 
                 if block_type != game::BlockType::None {
-                    let mut color = if block_type == game::BlockType::Cross { CROSS_COLOR } else { CIRCLE_COLOR };
+                    let mut color = game::get_player_color(block_type, &state);
                     color[3] = 0.2;
                     draw::draw_world_billboard(position, [0.05, 0.05], 0.0, [1.0, 1.0, 1.0, 1.0], 
                         draw::TexArg::One(get_symbol_texture(block_type).to_string()), &"default_tex", state);
@@ -256,14 +252,14 @@ fn main_loop(state: &mut State) {
     // Dragging
     if state.input.lmb.hold || state.input.mmb.hold {
         // Intersection with sphere
-        let intersection = util::intersect_line_sphere(&CUBE_POS, state.game.mouse_sphere_radius, &[0.0, 0.0, 0.0], &state.mouse_ray);
-        moving_cube = state.game.start_mouse_sphere_intersection != None && intersection != None;
+        let intersection = util::intersect_line_sphere_always(&CUBE_POS, state.game.mouse_sphere_radius, &[0.0, 0.0, 0.0], &state.mouse_ray);
+        moving_cube = state.game.start_mouse_sphere_intersection != None;
 
         if !state.input.lmb.down && !state.input.mmb.down { // Already down last frame
             if moving_cube {
                 // Get delta angle
                 let from = state.game.start_mouse_sphere_intersection.expect("");
-                let mut to = intersection.expect("");
+                let mut to = intersection;
 
                 let mut to_tmp = vec3::create();
                 vec3::sub(&mut to_tmp, &to, &CUBE_POS);
@@ -569,7 +565,7 @@ fn draw_cube_on_block<'a>(pos: &Vec3i, color: Vec4, shader: &'a str, state: &mut
 pub fn draw_line_of_winner(state: &mut State) {
     match state.game.state.clone() {
         game::GameState::GameWon(info) => {
-            let mut color = if info.winner == BlockType::Cross { CROSS_COLOR } else { CIRCLE_COLOR };
+            let mut color = game::get_player_color(info.winner, &state);
             color[3] = 0.7;
             
             let mut first_point = info.position.clone();
@@ -646,7 +642,8 @@ pub fn draw_column_outline(_pos: &[i32; 3], axis: usize, state: &mut State) {
     a[axis] -= half_block_size;
     b[axis] += half_block_size;
 
-    let line_color = [1.0, 1.0, 0.5, 0.4];
+    let mut line_color = game::get_player_color(game::get_current_player(&state), &state);
+    line_color[3] = 0.4;
     let line_width = 0.003;
 
     let mut a_points: [Vec3; 4] = [[0.0; 3]; 4];

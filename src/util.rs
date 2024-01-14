@@ -195,6 +195,30 @@ pub fn intersect_line_sphere(o: &Vec3, r: f32, a: &Vec3, v: &Vec3) -> Option<Vec
     return Some(res);
 }
 
+// Same as above, but if not intersecting, returns the nearest point on sphere
+pub fn intersect_line_sphere_always(o: &Vec3, r: f32, a: &Vec3, v: &Vec3) -> Vec3 {
+    let mut c = vec3::create();
+    vec3::sub(&mut c, &a, &o);
+
+    let dot = vec3::dot(&v, &c);
+    let vv = vec3::sqr_len(&v);
+    let cc = vec3::sqr_len(&c);
+
+    let mut delta = dot * dot - vv * (cc - r * r);
+    if delta < 0.0 {
+        delta = 0.0;
+    } 
+
+    let sqrt_delta = delta.sqrt();
+    let t1 = (-dot + sqrt_delta) / vv;
+    let t2 = (-dot - sqrt_delta) / vv;
+    let t = if t1 > t2 { t2 } else { t1 };
+
+    let mut res = vec3::create();
+    vec3::scale_and_add(&mut res, &a, &v, t);
+    return res;
+}
+
 // Gets the intersection point between:
 // - the plane that goes through P, with normal N
 // - the line that goes through A, with vector V

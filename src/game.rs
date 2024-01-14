@@ -6,6 +6,10 @@ use crate::movement::Movement;
 
 pub const BASE_CUBE_SIZE: f32 = 2.0;
 
+const CROSS_COLOR: Vec4 = [0.9, 0.2, 0.2, 1.0];
+const CIRCLE_COLOR: Vec4 = [0.2, 0.2, 0.9, 1.0];
+
+
 pub struct GameInfo {
     pub cube_transform_matrix: Mat4,
     pub cube_rotation: Quat,
@@ -163,4 +167,20 @@ pub fn check_for_victory(state: &State) -> Option<VictoryInfo> {
     }
 
     return None;
+}
+
+pub fn get_current_player(state: &State) -> BlockType {
+    match &state.game.state {
+        GameState::Turn(player) => *player,
+        GameState::GameWon(info) => info.winner,
+    }
+}
+
+pub fn get_player_color(player: BlockType, _state: &State) -> Vec4 {
+    if player == BlockType::Cross {
+        return CROSS_COLOR;
+    }
+    else {
+        return CIRCLE_COLOR;
+    }
 }

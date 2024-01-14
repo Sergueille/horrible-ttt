@@ -117,7 +117,7 @@ pub fn draw_line_world<'a>(a: &Vec3, b: &Vec3, color: Vec4, width: f32, cheap: b
     let position = [
         (a_screen[0] + b_screen[0]) / 2.0,
         (a_screen[1] + b_screen[1]) / 2.0,
-        (a_screen[2] + b_screen[2]) / 2.0,
+        (a_screen[2] + b_screen[2]) / 2.0  + width * 0.0001, // HACK: shift z coordinate to make wider lines appear behind and prevent z-fighting
     ];
 
     let mut dist = (a_screen[0] - b_screen[0]) * (a_screen[0] - b_screen[0])
