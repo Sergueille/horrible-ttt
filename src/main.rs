@@ -14,6 +14,7 @@ mod input;
 mod text;
 mod atlas_drawer;
 mod movement;
+mod ui;
 
 #[macro_use]
 extern crate glium;
@@ -22,7 +23,8 @@ extern crate csv;
 
 use std::env;
 
-use game::{GameState, BlockType};
+use game::GameState;
+use game::pos_to_id;
 use gl_matrix::quat;
 use gl_matrix::vec2;
 use gl_matrix::vec3;
@@ -41,11 +43,6 @@ pub struct Vertex {
 implement_vertex!(Vertex, pos, uv);
 
 const MAX_FPS: i32 = 100; 
-const ROW_COUNT: i32 = 6;
-const COUNT_TO_WIN: i32 = 5;
-const ROTATE_SPEED_DECREASE: f32 = 5.0;
-const CUBE_POS: [f32; 3] = [0.0, 0.0, -5.0];
-const BG_SCALE: f32 = 10.0;
 static FOV: f32 = PI / 4.0;
 
 // Set to true to create a font atlas
@@ -181,7 +178,7 @@ fn main_loop(state: &mut State) {
 
     // Create the transform matrix of the cube
     let mut translate_mat: Mat4 = mat4::create();
-    mat4::from_translation(&mut translate_mat, &CUBE_POS);
+    mat4::from_translation(&mut translate_mat, &game::CUBE_POS);
     
     let mut rotation_mat = mat4::create();
     mat4::from_quat(&mut rotation_mat, &state.game.cube_rotation);
@@ -201,8 +198,8 @@ fn main_loop(state: &mut State) {
         for j in [0, 6, 1, 2, 3, 4, 5] {
             let half_size = state.game.cube_size / 2.0;
 
-            let i_norm = state.game.cube_size / (ROW_COUNT as f32) * i as f32 - half_size;
-            let j_norm = state.game.cube_size / (ROW_COUNT as f32) * j as f32 - half_size;
+            let i_norm = state.game.cube_size / (game::ROW_COUNT as f32) * i as f32 - half_size;
+            let j_norm = state.game.cube_size / (game::ROW_COUNT as f32) * j as f32 - half_size;
 
             let a = apply_cube_transform(&[i_norm, -half_size, j_norm], &state);
             let b = apply_cube_transform(&[i_norm,  half_size, j_norm], &state);
@@ -228,9 +225,9 @@ fn main_loop(state: &mut State) {
     }
 
     // Draw crosses and circles
-    for i in 0..ROW_COUNT {
-        for j in 0..ROW_COUNT {
-            for k in 0..ROW_COUNT {
+    for i in 0..game::ROW_COUNT {
+        for j in 0..game::ROW_COUNT {
+            for k in 0..game::ROW_COUNT {
                 let pos = vec3i(i, j, k);
                 let block_type = game::get_block(&pos, &state);
                 let position = apply_cube_transform(&get_block_coords(&pos, &state), &state);
@@ -238,8 +235,17 @@ fn main_loop(state: &mut State) {
                 if block_type != game::BlockType::None {
                     let mut color = game::get_player_color(block_type, &state);
                     color[3] = 0.2;
-                    draw::draw_world_billboard(position, [0.05, 0.05], 0.0, [1.0, 1.0, 1.0, 1.0], 
+
+                    let mut symbol_color = [1.0, 1.0, 1.0, 1.0];
+                    
+                    // Highlight last placed block
+                    if pos_to_id(&pos) == state.game.last_block_id {
+                        symbol_color = util::lerp_vec4(&symbol_color, &game::HIGHLIGHT_COLOR, (game::HIGHLIGHT_SPEED * state.time.time).sin() * 0.5 + 0.5);
+                    }
+
+                    draw::draw_world_billboard(position, [0.05, 0.05], 0.0, symbol_color, 
                         draw::TexArg::One(get_symbol_texture(block_type).to_string()), &"default_tex", state);
+
                     draw_cube_on_block(&pos, color, &"default_color", state);
                 }
             }
@@ -252,7 +258,7 @@ fn main_loop(state: &mut State) {
     // Dragging
     if state.input.lmb.hold || state.input.mmb.hold {
         // Intersection with sphere
-        let intersection = util::intersect_line_sphere_always(&CUBE_POS, state.game.mouse_sphere_radius, &[0.0, 0.0, 0.0], &state.mouse_ray);
+        let intersection = util::intersect_line_sphere_always(&game::CUBE_POS, state.game.mouse_sphere_radius, &[0.0, 0.0, 0.0], &state.mouse_ray);
         moving_cube = state.game.start_mouse_sphere_intersection != None;
 
         if !state.input.lmb.down && !state.input.mmb.down { // Already down last frame
@@ -262,7 +268,7 @@ fn main_loop(state: &mut State) {
                 let mut to = intersection;
 
                 let mut to_tmp = vec3::create();
-                vec3::sub(&mut to_tmp, &to, &CUBE_POS);
+                vec3::sub(&mut to_tmp, &to, &game::CUBE_POS);
                 vec3::normalize(&mut to, &to_tmp);
 
                 let mut delta = quat::create();
@@ -296,12 +302,12 @@ fn main_loop(state: &mut State) {
                     let mut tmp1 = vec3::create();
                     let mut tmp2 = vec3::create();
 
-                    vec3::sub(&mut tmp1, &pos.world_pos, &CUBE_POS);
+                    vec3::sub(&mut tmp1, &pos.world_pos, &game::CUBE_POS);
                     vec3::normalize(&mut tmp2, &tmp1);
                     state.game.start_mouse_sphere_intersection = Some(tmp2);
                     state.game.last_mouse_sphere_intersection = Some(tmp2);
 
-                    vec3::sub(&mut tmp1, &pos.world_pos, &CUBE_POS);
+                    vec3::sub(&mut tmp1, &pos.world_pos, &game::CUBE_POS);
                     state.game.mouse_sphere_radius = vec3::len(&tmp1);
 
                 }
@@ -327,7 +333,7 @@ fn main_loop(state: &mut State) {
 
     if !moving_cube {
         // Decrease velocity
-        let mult = (1.0 - (-ROTATE_SPEED_DECREASE * (state.time.time - state.game.cube_release_time)).exp()) / ROTATE_SPEED_DECREASE;
+        let mult = (1.0 - (-game::ROTATE_SPEED_DECREASE * (state.time.time - state.game.cube_release_time)).exp()) / game::ROTATE_SPEED_DECREASE;
         let delta = util::multiply_quat(&state.game.cube_rotation_velocity, mult);
 
         // Apply velocity rotation
@@ -337,12 +343,12 @@ fn main_loop(state: &mut State) {
     }
 
     let mut bg_transform = mat4::create();
-    mat4::scale(&mut bg_transform, &state.game.cube_transform_matrix, &[-BG_SCALE, -BG_SCALE, -BG_SCALE]);
-    draw::draw_cube(bg_transform, -BG_SCALE, [0.1, 0.1, 0.1, 10.0], draw::TexArg::One("gray_grid.png".to_string()), "bg_cube", state);
+    mat4::scale(&mut bg_transform, &state.game.cube_transform_matrix, &[-game::BG_SCALE, -game::BG_SCALE, -game::BG_SCALE]);
+    draw::draw_cube(bg_transform, -game::BG_SCALE, [0.1, 0.1, 0.1, 10.0], draw::TexArg::One("gray_grid.png".to_string()), "bg_cube", state);
 
     text::draw_text(
         &format!("{}ms, {} FPS", (state.time.delta_time * 1000.0) as i32, (1.0 / state.time.delta_time) as i32), 
-        [0.005, 0.98], 0.25, [1.0, 1.0, 1.0, 1.0], state);
+        [0.005, 0.98], 0.025, [1.0, 1.0, 1.0, 1.0], state);
 
     // Make sure the cube rotation is normalized (sometimes isn't because of precision issues) 
     let mut normalized = quat::create();
@@ -360,24 +366,20 @@ fn handle_turn(pos_on_cube: Option<CubePosition>, state: &mut State) {
         let pos = pos_on_cube.expect("");
 
         // Handle wheel
-        if pos.face_id != state.game.last_face_id {
-            state.game.depth = 0;
-        }
-
         if state.input.wheel_down {
             if state.game.depth > 0 {
                 state.game.depth -= 1;
             }
         }
         else if state.input.wheel_up {
-            if state.game.depth < ROW_COUNT - 1 {
+            if state.game.depth < game::ROW_COUNT - 1 {
                 state.game.depth += 1;
             }
         }
 
         let mut block_pos = pos.coords;
         if pos.is_wheel_inverted {
-            block_pos[pos.wheel_direction] = ROW_COUNT - 1 - state.game.depth;
+            block_pos[pos.wheel_direction] = game::ROW_COUNT - 1 - state.game.depth;
         }
         else {
             block_pos[pos.wheel_direction] = state.game.depth;
@@ -421,12 +423,12 @@ fn apply_cube_rotation(vec: &Vec3, state: &State) -> Vec3 {
 }
 
 fn get_block_coords(pos: &Vec3i, state: &State) -> Vec3 {
-    let block_size = state.game.cube_size / ROW_COUNT as f32;
+    let block_size = state.game.cube_size / game::ROW_COUNT as f32;
     
     return [
-        -(block_size * (ROW_COUNT - 1) as f32 / 2.0) + pos.x as f32 * block_size,
-        -(block_size * (ROW_COUNT - 1) as f32 / 2.0) + pos.y as f32 * block_size,
-        (block_size * (ROW_COUNT - 1) as f32 / 2.0) - pos.z as f32 * block_size,
+        -(block_size * (game::ROW_COUNT - 1) as f32 / 2.0) + pos.x as f32 * block_size,
+        -(block_size * (game::ROW_COUNT - 1) as f32 / 2.0) + pos.y as f32 * block_size,
+        (block_size * (game::ROW_COUNT - 1) as f32 / 2.0) - pos.z as f32 * block_size,
     ];
 }
 
@@ -554,7 +556,7 @@ fn draw_cube_on_block<'a>(pos: &Vec3i, color: Vec4, shader: &'a str, state: &mut
     let mut result_transform = mat4::create();
     mat4::mul(&mut result_transform, &state.game.cube_transform_matrix, &translate_mat);
     
-    let scale_amount = state.game.cube_size / ROW_COUNT as f32;
+    let scale_amount = state.game.cube_size / game::ROW_COUNT as f32;
 
     let cloned = result_transform.clone();
     mat4::scale(&mut result_transform, &cloned, &[scale_amount, scale_amount, scale_amount]);
@@ -570,12 +572,12 @@ pub fn draw_line_of_winner(state: &mut State) {
             
             let mut first_point = info.position.clone();
 
-            first_point.x = (first_point.x + ROW_COUNT) % ROW_COUNT;
-            first_point.y = (first_point.y + ROW_COUNT) % ROW_COUNT;
-            first_point.z = (first_point.z + ROW_COUNT) % ROW_COUNT;
+            first_point.x = (first_point.x + game::ROW_COUNT) % game::ROW_COUNT;
+            first_point.y = (first_point.y + game::ROW_COUNT) % game::ROW_COUNT;
+            first_point.z = (first_point.z + game::ROW_COUNT) % game::ROW_COUNT;
 
             let mut current = first_point.clone();
-            let mut total_length = ROW_COUNT - 1;
+            let mut total_length = game::ROW_COUNT - 1;
             let mut i = 0;
             let mut should_end = false;
             while !should_end {
@@ -588,9 +590,9 @@ pub fn draw_line_of_winner(state: &mut State) {
                     should_end = true;
                 }
 
-                if current.x < 0 || current.x >= ROW_COUNT 
-                || current.y < 0 || current.y >= ROW_COUNT 
-                || current.z < 0 || current.z >= ROW_COUNT 
+                if current.x < 0 || current.x >= game::ROW_COUNT 
+                || current.y < 0 || current.y >= game::ROW_COUNT 
+                || current.z < 0 || current.z >= game::ROW_COUNT 
                 || i == total_length - 1 { // Fell outside of the cube
 
                     draw::draw_line_world(
@@ -598,9 +600,9 @@ pub fn draw_line_of_winner(state: &mut State) {
                         &apply_cube_transform(&get_block_coords(&current, state), state), 
                         color, 0.03, false, state);
 
-                    current.x = (current.x + ROW_COUNT) % ROW_COUNT;
-                    current.y = (current.y + ROW_COUNT) % ROW_COUNT;
-                    current.z = (current.z + ROW_COUNT) % ROW_COUNT;
+                    current.x = (current.x + game::ROW_COUNT) % game::ROW_COUNT;
+                    current.y = (current.y + game::ROW_COUNT) % game::ROW_COUNT;
+                    current.z = (current.z + game::ROW_COUNT) % game::ROW_COUNT;
 
                     current.x -= info.direction.x;
                     current.y -= info.direction.y;
@@ -630,10 +632,10 @@ pub fn draw_column_outline(_pos: &[i32; 3], axis: usize, state: &mut State) {
     
     pos[axis] = 0;
     let mut a = get_block_coords(&util::vec3i_arr(pos), &state);
-    pos[axis] = ROW_COUNT - 1;
+    pos[axis] = game::ROW_COUNT - 1;
     let mut b = get_block_coords(&util::vec3i_arr(pos), &state);
 
-    let mut half_block_size = state.game.cube_size / ROW_COUNT as f32 / 2.0;
+    let mut half_block_size = state.game.cube_size / game::ROW_COUNT as f32 / 2.0;
     
     if axis == 2 {
         half_block_size *= -1.0;

@@ -8,6 +8,7 @@ use std::collections::HashMap;
 
 pub const MAX_GLYPH_COUNT: usize = 5000;
 pub const ADVANCE_MULTIPLIER: f32 =  0.015;
+pub const LINE_HEIGHT: f32 =  1.0;
 
 pub struct TextData {
     pub chars: HashMap<char, GlyphInfo>,
@@ -86,13 +87,36 @@ pub fn draw_text(content: &str, position: Vec2, size: f32, color: Vec4, state: &
     });
 }
 
+pub fn get_text_width(content: &str, size: f32, state: &State) -> f32 {
+    let mut res = 0.0;
+
+    for char in content.chars() {
+        if char == ' ' {
+            res += state.text_data.space_size * size * ADVANCE_MULTIPLIER;
+            continue;
+        }
+
+        let info = match state.text_data.chars.get(&char) {
+            Some(info) => info,
+            None => {
+                println!("ERR: Attempted to display character `{}`, which is not present in the font atlas", char);
+                state.text_data.chars.get(&'?').expect("ERR: This fucking font atlas doesn't event contain a question mark!")
+            }
+        };
+
+        res += info.advance * size * ADVANCE_MULTIPLIER;
+    }
+
+    return res;
+}
+
 pub fn draw_all_text(frame: &mut glium::Frame, state: &mut State) {
     // Create buffer
     let mut buffer: Vec<GlyphAttr> = Vec::with_capacity(MAX_GLYPH_COUNT); // Assume ~20 characters per text 
     for text in &state.text_data.texts {
         let ratio = state.resolution.y as f32 / state.resolution.x as f32;
         let mut cursor_pos = text.position;
-        let actual_scale = text.size * 0.1; // TODO: implement a proper unit...
+        let actual_scale = text.size;
 
         for glyph in text.content.chars() {
             if glyph == ' ' {

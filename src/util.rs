@@ -264,3 +264,12 @@ pub fn identity_uniform() -> [[f32; 4]; 4] {
         [0.0, 0.0, 0.0, 1.0],
     ]
 }
+
+pub fn lerp_vec4(a: &Vec4, b: &Vec4, t: f32) -> Vec4 {
+    return [
+        a[0] * t + b[0] * (1.0 - t),
+        a[1] * t + b[1] * (1.0 - t),
+        a[2] * t + b[2] * (1.0 - t),
+        a[3] * t + b[3] * (1.0 - t),
+    ];
+}

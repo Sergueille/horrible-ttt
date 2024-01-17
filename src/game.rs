@@ -6,15 +6,22 @@ use crate::movement::Movement;
 
 pub const BASE_CUBE_SIZE: f32 = 2.0;
 
-const CROSS_COLOR: Vec4 = [0.9, 0.2, 0.2, 1.0];
-const CIRCLE_COLOR: Vec4 = [0.2, 0.2, 0.9, 1.0];
-
+pub const CROSS_COLOR: Vec4 = [0.9, 0.2, 0.2, 1.0];
+pub const CIRCLE_COLOR: Vec4 = [0.2, 0.2, 0.9, 1.0];
+pub const HIGHLIGHT_COLOR: Vec4 = [1.0, 1.0, 0.6, 1.0];
+pub const HIGHLIGHT_SPEED: f32 = 0.8 * 6.29;
+pub const ROW_COUNT: i32 = 6;
+pub const COUNT_TO_WIN: i32 = 5;
+pub const ROTATE_SPEED_DECREASE: f32 = 5.0;
+pub const CUBE_POS: [f32; 3] = [0.0, 0.0, -5.0];
+pub const BG_SCALE: f32 = 10.0;
 
 pub struct GameInfo {
     pub cube_transform_matrix: Mat4,
     pub cube_rotation: Quat,
     pub cube_size: f32,
     pub blocks: [game::BlockType; (ROW_COUNT * ROW_COUNT * ROW_COUNT) as usize],
+    pub last_block_id: i32,
     pub cube_rotation_velocity: Quat,
     pub cube_release_rotation: Quat,
     pub cube_release_time: f32,
@@ -52,6 +59,7 @@ pub fn initial_state() -> GameInfo {
         cube_release_time: 0.0,
 
         blocks: [game::BlockType::None; (ROW_COUNT * ROW_COUNT * ROW_COUNT) as usize],
+        last_block_id: -1,
         start_mouse_sphere_intersection: None,
         last_mouse_sphere_intersection: None,
         mouse_sphere_radius: 0.0,
@@ -91,6 +99,7 @@ pub fn submit_click(pos: &Vec3i, state: &mut State) {
 
     if current_block == BlockType::None {
         set_block(pos, block_type, state);
+        state.game.last_block_id = pos_to_id(pos);
 
         let victory_info = check_for_victory(state);
         match victory_info {
